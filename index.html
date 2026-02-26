@@ -73,16 +73,20 @@
     border-bottom: 1px solid #bfdbfe;
     padding: 8px 20px;
     display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .filter-row {
+    display: flex;
     align-items: center;
     gap: 10px;
     flex-wrap: wrap;
   }
-  .filter-bar label { font-size: 11px; font-weight: 700; color: var(--muted); }
-  .filter-bar select, .filter-bar input {
-    padding: 4px 8px; border: 1px solid var(--border); border-radius: 5px;
-    font-size: 12px; background: #fff;
+  .filter-bar input[type="text"] {
+    padding: 5px 10px; border: 1px solid var(--border); border-radius: 6px;
+    font-size: 12px; background: #fff; width: 200px;
   }
-  .filter-bar input[type="text"] { width: 180px; }
+  .filter-bar input[type="text"]:focus { outline: none; border-color: var(--accent); }
 
   /* ── Stats bar ── */
   .stats-bar {
@@ -133,6 +137,18 @@
   td.num-cell { color: var(--accent); font-weight: 600; }
   td.total-cell { color: #b45309; font-weight: 700; background: #fef3c7 !important; }
   td.zero { color: #cbd5e1; }
+  tfoot tr td {
+    background: #1e3a5f !important;
+    color: #e0eaff;
+    font-weight: 700;
+    font-size: 12px;
+    padding: 6px 6px;
+    border-top: 2px solid var(--kada-blue);
+    text-align: center;
+  }
+  tfoot tr td.foot-label { color: #93c5fd; font-size: 11px; }
+  tfoot tr td.foot-total { color: #fbbf24; }
+  tfoot tr td.foot-target { color: #86efac; }
 
   /* ── Modal overlay ── */
   .modal-overlay {
@@ -258,13 +274,33 @@
   ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
   ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
-  /* Checkbox filter ── */
-  .filter-group { display: flex; align-items: center; gap: 8px; }
-  .filter-group .filter-label { font-size: 11px; font-weight: 700; color: var(--muted); min-width: 50px; }
-  .filter-checkboxes { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-  .filter-check { display: flex; align-items: center; gap: 4px; }
-  .filter-check input[type="checkbox"] { width: 14px; height: 14px; cursor: pointer; }
-  .filter-check label { font-size: 11px; cursor: pointer; user-select: none; }
+  /* Checkbox filter ── chip 스타일 */
+  .filter-group { display: flex; align-items: center; gap: 6px; }
+  .filter-divider { width: 1px; height: 20px; background: #bfdbfe; flex-shrink: 0; }
+  .filter-group .filter-label {
+    font-size: 10px; font-weight: 700; color: var(--kada-blue);
+    background: #dbeafe; border-radius: 4px;
+    padding: 3px 7px; white-space: nowrap; flex-shrink: 0;
+  }
+  .filter-checkboxes { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+  .filter-check { position: relative; }
+  .filter-check input[type="checkbox"] {
+    position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none;
+  }
+  .filter-check label {
+    display: inline-block;
+    font-size: 11px; font-weight: 500;
+    padding: 3px 9px; border-radius: 20px;
+    border: 1px solid #bfdbfe;
+    background: #fff; color: var(--muted);
+    cursor: pointer; user-select: none;
+    transition: all .15s;
+    line-height: 1.4;
+  }
+  .filter-check label:hover { border-color: var(--accent); color: var(--accent); background: #eff6ff; }
+  .filter-check input[type="checkbox"]:checked + label {
+    background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600;
+  }
 
   /* Modal tabs ── */
   .modal-tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 0; }
@@ -336,27 +372,36 @@
 
 <!-- Filter bar -->
 <div class="filter-bar">
-  <label>🔍 검색</label>
-  <input type="text" id="searchInput" placeholder="교육명 검색..." oninput="renderTable()">
-
-  <div class="filter-group">
-    <span class="filter-label">월</span>
-    <div class="filter-checkboxes" id="filterMonthGroup"></div>
+  <!-- 1행: 검색 + 유형 + 자원 -->
+  <div class="filter-row">
+    <div style="display:flex;align-items:center;gap:6px">
+      <span style="font-size:11px;font-weight:700;color:var(--muted)">🔍</span>
+      <input type="text" id="searchInput" placeholder="교육명 검색..." oninput="renderTable()">
+    </div>
+    <div class="filter-divider"></div>
+    <div class="filter-group">
+      <span class="filter-label">유형</span>
+      <div class="filter-checkboxes" id="filterTypeGroup"></div>
+    </div>
+    <div class="filter-divider"></div>
+    <div class="filter-group">
+      <span class="filter-label">자원</span>
+      <div class="filter-checkboxes" id="filterJawonGroup"></div>
+    </div>
   </div>
-
-  <div class="filter-group">
-    <span class="filter-label">권역</span>
-    <div class="filter-checkboxes" id="filterRegionGroup"></div>
+  <!-- 2행: 월 -->
+  <div class="filter-row">
+    <div class="filter-group">
+      <span class="filter-label">월</span>
+      <div class="filter-checkboxes" id="filterMonthGroup"></div>
+    </div>
   </div>
-
-  <div class="filter-group">
-    <span class="filter-label">유형</span>
-    <div class="filter-checkboxes" id="filterTypeGroup"></div>
-  </div>
-
-  <div class="filter-group">
-    <span class="filter-label">자원</span>
-    <div class="filter-checkboxes" id="filterJawonGroup"></div>
+  <!-- 3행: 권역 -->
+  <div class="filter-row">
+    <div class="filter-group">
+      <span class="filter-label">권역</span>
+      <div class="filter-checkboxes" id="filterRegionGroup"></div>
+    </div>
   </div>
 </div>
 
@@ -395,6 +440,7 @@
       <tr id="tableHeader"></tr>
     </thead>
     <tbody id="tableBody"></tbody>
+    <tfoot id="tableFoot"></tfoot>
   </table>
   <div class="empty-state" id="emptyState" style="display:none">
     <div class="icon">📋</div>
@@ -446,7 +492,7 @@
             <label>교육유형 *</label>
             <select id="f_type">
               <option value="">선택</option>
-              <option>강의형</option><option>온라인 실시간</option><option>체험형</option><option>아웃리치</option>
+              <option>강의형(대면)교육</option><option>온라인 실시간</option><option>체험형</option><option>아웃리치</option>
             </select>
           </div>
           <div class="form-group">
@@ -462,20 +508,13 @@
           </div>
           <div class="form-group">
             <label>기관명</label>
-            <div style="display:flex;gap:8px">
-              <select id="f_org" style="flex:1">
-                <option value="">선택</option>
-                <option>대한체육회</option><option>회원종목단체</option><option>대한장애인체육회</option>
-                <option>가맹경기단체</option><option>시도체육회</option><option>시도장애인체육회</option>
-                <option>프로스포츠단체</option><option>시도교육(지원)청</option><option>체육중고</option>
-                <option>학교운동부</option><option>체육지도자 자격연수기관</option><option>기타</option>
-              </select>
-              <button class="btn btn-outline btn-sm" onclick="switchModalTab('participants')" style="display:none" id="participantsTabBtn">참여자명단</button>
-            </div>
-            <div class="modal-tabs" style="margin-top:8px;margin-left:-20px;margin-right:-20px;margin-bottom:0">
-              <div class="modal-tab active" onclick="switchModalTab('info')">기본 정보</div>
-              <div class="modal-tab" onclick="switchModalTab('participants')" id="participantsTab">참여자명단</div>
-            </div>
+            <select id="f_org" style="flex:1">
+              <option value="">선택</option>
+              <option>대한체육회</option><option>회원종목단체</option><option>대한장애인체육회</option>
+              <option>가맹경기단체</option><option>시도체육회</option><option>시도장애인체육회</option>
+              <option>프로스포츠단체</option><option>시도교육(지원)청</option><option>체육중고</option>
+              <option>학교운동부</option><option>체육지도자 자격연수기관</option><option>기타</option>
+            </select>
           </div>
           <div class="form-group span-2" style="grid-column:span 1">
             <label>교육장소</label>
@@ -608,20 +647,6 @@
 
       </div><!-- End tab-info -->
 
-      <!-- 참여자명단 탭 -->
-      <div id="tab-participants" class="modal-tab-content">
-        <div style="padding:20px">
-          <div style="font-size:12px;color:var(--muted);margin-bottom:12px">
-            eKADA 상세페이지의 참여자 정보를 표시합니다.
-          </div>
-          <div id="participantsList" style="max-height:400px;overflow-y:auto">
-            <div style="text-align:center;color:var(--muted);padding:20px">
-              기관명을 선택하고 데이터를 저장하면 참여자 목록이 로드됩니다.
-            </div>
-          </div>
-        </div>
-      </div><!-- End tab-participants -->
-
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal('editModal')">취소</button>
@@ -678,8 +703,25 @@
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-outline" onclick="clearLogsData()">로그 초기화</button>
+      <button class="btn btn-outline" onclick="clearLogsData()" style="display:none">로그 초기화</button>
       <button class="btn btn-outline" onclick="closeModal('logsModal')">닫기</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== PARTICIPANTS VIEW MODAL (사용 안함 – hidden) ===== -->
+<div class="modal-overlay" id="participantsModal" style="display:none">
+  <div class="modal-box" style="max-width:560px">
+    <div class="modal-header">
+      <h2 id="participantsModalTitle">📊 대상별 예상 인원</h2>
+      <button class="modal-close" onclick="closeModal('participantsModal')">✕</button>
+    </div>
+    <div class="modal-body" style="padding:0">
+      <div id="participantsViewList" style="max-height:520px;overflow-y:auto"></div>
+    </div>
+    <div class="modal-footer">
+      <span style="font-size:11px;color:var(--muted)">※ 예상 인원 기준 (읽기 전용)</span>
+      <button class="btn btn-outline" onclick="closeModal('participantsModal')">닫기</button>
     </div>
   </div>
 </div>
@@ -722,7 +764,7 @@ function setSortKey(key) {
 }
 const MONTHS = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
 const REGIONS = ['서울','부산','인천','대구','대전','광주','울산','세종','경기','강원','충북','충남','전북','전남','경북','경남','제주'];
-const TYPES = ['강의형','온라인 실시간','체험형','아웃리치'];
+const TYPES = ['강의형(대면)교육','온라인 실시간','체험형','아웃리치'];
 const JAWONS = ['기금','자체','기타'];
 const TARGET_KEYS = [
   '국가대표','국가대표후보','청소년대표','꿈나무선수','RTPTP',
@@ -793,7 +835,7 @@ function buildHeader() {
   let html = '<th>No</th>'
     + sortTh('교육명','교육명')
     + sortTh('교육일','교육일')
-    + '<th>권역</th><th>자원</th><th>유형</th><th>담당자</th><th>강사</th><th>기관명</th>';
+    + '<th>권역</th><th>자원</th><th>유형</th><th>담당자</th><th>강사</th><th>기관명</th><th>참여자</th>';
   html += targetShort.map(c => `<th class="th-target">${c}</th>`).join('');
   html += '<th class="th-total">합계</th><th>작업</th>';
   tr.innerHTML = html;
@@ -863,6 +905,7 @@ function renderTable() {
       <td>${r.담당자||''}</td>
       <td>${r.강사1||''}</td>
       <td style="max-width:100px;overflow:hidden;text-overflow:ellipsis">${r.기관명||''}</td>
+      <td style="text-align:center;font-weight:600">${r.참여자수 != null ? r.참여자수 : (r.인원_계 || '')}</td>
       ${tCells}
       <td class="total-cell">${total||''}</td>
       <td>
@@ -871,6 +914,29 @@ function renderTable() {
       </td>
     </tr>`;
   }).join('');
+
+  // ── 총계 행 ──
+  const tfoot = document.getElementById('tableFoot');
+  const rows = filtered.map(f => f.r);
+  const sumParticipant = rows.reduce((s, r) => s + (parseInt(r.참여자수) || parseInt(r.인원_계) || 0), 0);
+  const sumInstructor  = rows.filter(r => r.강사1 && r.강사1.trim()).length;
+  const sumTargets     = TARGET_KEYS.map(k => rows.reduce((s, r) => s + (parseInt(r[k]) || 0), 0));
+  const sumGrandTotal  = sumTargets.reduce((a, b) => a + b, 0);
+
+  const targetTds = sumTargets.map(v =>
+    `<td class="foot-target">${v || ''}</td>`
+  ).join('');
+
+  tfoot.innerHTML = `<tr>
+    <td class="foot-label">합계</td>
+    <td class="foot-label" colspan="6">${rows.length}건</td>
+    <td class="foot-label">${sumInstructor}명</td>
+    <td class="foot-label"></td>
+    <td class="foot-total">${sumParticipant || ''}</td>
+    ${targetTds}
+    <td class="foot-total">${sumGrandTotal || ''}</td>
+    <td></td>
+  </tr>`;
 
   // Filter status
   const activeFilters = getSelectedFilters();
@@ -1223,7 +1289,7 @@ function exportExcel() {
   // ── Sheet 2: BASE ──
   const baseData = [
     ['재원', '권역', '기관명', '교육유형', '강사명', '대상', '종목단체명'],
-    ['기금','서울','대한체육회','강의형','강명신','초등선수','K리그'],
+    ['기금','서울','대한체육회','강의형(대면)교육','강명신','초등선수','K리그'],
     ['자체','부산','회원종목단체','온라인 실시간','강민우','중등선수','KBO'],
     ['기타','인천','대한장애인체육회','체험형','강효찬','고등선수','KOVO'],
     ['','대구','가맹경기단체','아웃리치','곽상수','대학선수','KBL'],
@@ -1280,6 +1346,15 @@ function copyBookmarklet() {
   showToast('복사됨', 'success');
 }
 
+function extractArrayFromJson(data) {
+  // 1) 배열이면 그대로
+  if (Array.isArray(data)) return data;
+  // 2) {교육목록:[...]} 래퍼 구조 (eKADA 추출데이터 형식)
+  if (data && Array.isArray(data.교육목록)) return data.교육목록;
+  // 3) 단일 객체면 배열로
+  return [data];
+}
+
 function importJsonFile(input) {
   const file = input.files[0];
   if (!file) return;
@@ -1287,7 +1362,7 @@ function importJsonFile(input) {
   reader.onload = function(e) {
     try {
       const data = JSON.parse(e.target.result);
-      const arr = Array.isArray(data) ? data : [data];
+      const arr = extractArrayFromJson(data);
       let cnt = 0;
       arr.forEach(item => {
         if (item.교육명 || item.name) {
@@ -1312,7 +1387,7 @@ function importFromJSON() {
     const text = document.getElementById('jsonPasteArea').value.trim();
     if (!text) return;
     const data = JSON.parse(text);
-    const arr = Array.isArray(data) ? data : [data];
+    const arr = extractArrayFromJson(data);
     let cnt = 0;
     arr.forEach(item => {
       if (item.교육명 || item.name) {
@@ -1396,10 +1471,12 @@ function initFilters() {
 // ================================================================
 function openLogsModal() {
   const container = document.getElementById('logsContainer');
-  if (logs.length === 0) {
-    container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted)">로그가 없습니다.</div>';
+  // 수정한 건만 표시 (신규 추가 'New' 로그 제외)
+  const modLogs = logs.filter(log => log.field !== 'New');
+  if (modLogs.length === 0) {
+    container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted)">수정 로그가 없습니다.</div>';
   } else {
-    container.innerHTML = logs.map(log => `
+    container.innerHTML = modLogs.map(log => `
       <div class="log-item">
         <div class="log-id">${log.field}</div>
         <div class="log-field">${log.change}</div>
@@ -1549,6 +1626,88 @@ async function loadParticipants(record) {
 }
 
 // ================================================================
+// PARTICIPANTS VIEW (main table – 대상별 예상 인원 로컬 표시)
+// ================================================================
+function openParticipantsView(idx) {
+  const record = records[idx];
+  const eduName = record.교육명 || '';
+  document.getElementById('participantsModalTitle').textContent = '📊 대상별 예상 인원 — ' + eduName;
+  document.getElementById('participantsModal').classList.add('active');
+  const listEl = document.getElementById('participantsViewList');
+
+  // 그룹 정의
+  const GROUPS = [
+    { label: '🏆 대표선수', keys: ['국가대표','국가대표후보','청소년대표','꿈나무선수','RTPTP','제재후복귀선수'] },
+    { label: '🏋️ 실업·직장', keys: ['직장운동경기부'] },
+    { label: '♿ 장애인', keys: ['장애인국가대표','장애인선수','장애인선수지원요원'] },
+    { label: '🏫 학교체육', keys: ['초등선수','중등선수','고등선수','체육중','체육고','프로유스','대학선수','클럽선수반'] },
+    { label: '👩‍🏫 교육관계자', keys: ['교사','학부모'] },
+    { label: '⚽ 프로스포츠', keys: ['프로KBL','프로KOVO','프로KBO','프로WKBL','프로KLPGA','프로KPGA','프로K리그','경륜경정'] },
+    { label: '📋 지도자 자격', keys: ['1급전문','2급전문','1급장애','2급장애','1급생활','2급생활','건운사'] },
+    { label: '🌱 기타', keys: ['노인','유소년','행정가','지도자','트레이너','기타'] }
+  ];
+
+  // KEY → LABEL 매핑 (TARGET_LABELS 순서에 맞게)
+  const KEY_LABEL = {};
+  TARGET_KEYS.forEach((k, i) => {
+    KEY_LABEL[k] = TARGET_LABELS[i].replace(/\n/g, ' ');
+  });
+
+  let totalSum = 0;
+  let groupHtml = '';
+
+  GROUPS.forEach(group => {
+    const rows = group.keys
+      .map(k => ({ key: k, label: KEY_LABEL[k] || k, val: parseInt(record[k]) || 0 }))
+      .filter(item => item.val > 0);
+    if (rows.length === 0) return;
+
+    const groupSum = rows.reduce((s, r) => s + r.val, 0);
+    totalSum += groupSum;
+
+    groupHtml += `
+      <div style="margin-bottom:2px">
+        <div style="padding:5px 12px;background:#f1f5f9;font-size:11px;font-weight:700;color:var(--kada-blue);
+                    border-left:3px solid var(--accent);display:flex;justify-content:space-between;align-items:center">
+          <span>${group.label}</span>
+          <span style="color:var(--accent)">${groupSum}명</span>
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          ${rows.map((item, ri) => `
+          <tr style="background:${ri % 2 === 0 ? '#fff' : '#fafafa'}">
+            <td style="padding:5px 12px 5px 20px;color:var(--text)">${item.label}</td>
+            <td style="padding:5px 12px;text-align:right;font-weight:600;color:var(--accent);width:70px">${item.val}명</td>
+          </tr>`).join('')}
+        </table>
+      </div>`;
+  });
+
+  // 값이 하나도 없는 경우
+  if (totalSum === 0) {
+    listEl.innerHTML = `<div style="padding:30px;text-align:center;color:var(--muted)">
+      <div style="font-size:28px;margin-bottom:8px">📭</div>
+      <div>입력된 대상별 인원 데이터가 없습니다.</div>
+      <div style="font-size:11px;margin-top:4px">교육 수정에서 대상별 인원을 입력해 주세요.</div>
+    </div>`;
+    return;
+  }
+
+  listEl.innerHTML = `
+    <div style="padding:8px 12px;background:var(--kada-light);font-size:11px;
+                color:var(--muted);border-bottom:1px solid var(--border);
+                display:flex;justify-content:space-between;align-items:center">
+      <span>📌 <strong style="color:var(--text)">${eduName}</strong></span>
+      <span>예상 합계 <strong style="color:var(--accent);font-size:13px">${totalSum}명</strong></span>
+    </div>
+    ${groupHtml}
+    <div style="padding:8px 12px;background:#f8fafc;border-top:2px solid var(--border);
+                display:flex;justify-content:flex-end;align-items:center;font-size:13px;font-weight:700">
+      <span style="color:var(--muted);margin-right:8px">전체 합계</span>
+      <span style="color:var(--accent);font-size:15px">${totalSum}명</span>
+    </div>`;
+}
+
+// ================================================================
 // INIT
 // ================================================================
 document.addEventListener('DOMContentLoaded', () => {
@@ -1558,22 +1717,7 @@ document.addEventListener('DOMContentLoaded', () => {
   renderTable();
 });
 
-// Modal tab initialization
-document.querySelectorAll('.modal-tab').forEach((tab, idx) => {
-  tab.addEventListener('click', function() {
-    document.querySelectorAll('.modal-tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.modal-tab-content').forEach(t => t.classList.remove('active'));
-    this.classList.add('active');
-    const tabName = ['info', 'participants'][idx];
-    const tabEl = document.getElementById('tab-' + tabName);
-    if (tabEl) {
-      tabEl.classList.add('active');
-      if (tabName === 'participants' && editingIndex >= 0) {
-        loadParticipants(records[editingIndex]);
-      }
-    }
-  });
-});
+// (참여자명단 탭 제거로 modal-tab 이벤트 바인딩 불필요)
 
 // Close modal on overlay click
 document.querySelectorAll('.modal-overlay').forEach(overlay => {
