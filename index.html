@@ -2112,6 +2112,7 @@
       if (pw === null) return;
       if (pw !== '0318@') { showToast('비밀번호가 틀렸습니다', 'error'); return; }
       if (!confirm(`전체 ${records.length}건 데이터를 모두 삭제하시겠습니까?`)) return;
+      addLog('버튼클릭', '전체삭제', '-');
       db.collection(FS_COL).get().then(snap => {
         const batch = db.batch();
         snap.docs.forEach(doc => batch.delete(doc.ref));
@@ -2127,6 +2128,7 @@
     // IMPORT / EXPORT
     // ================================================================
     function importExcel(input) {
+      addLog('버튼클릭', 'Excel 가져오기', '-');
       const file = input.files[0];
       if (!file) return;
       const reader = new FileReader();
@@ -2211,6 +2213,7 @@
     }
 
     function exportExcel() {
+      addLog('버튼클릭', 'Excel 내보내기', '-');
       if (records.length === 0) { showToast('내보낼 데이터가 없습니다', 'error'); return; }
 
       const wb = XLSX.utils.book_new();
@@ -2332,6 +2335,7 @@
     // BOOKMARKLET
     // ================================================================
     function openBookmarkletModal() {
+      addLog('버튼클릭', 'eKADA 붙여넣기', '-');
       const code = `javascript:(function(){
 var rows=document.querySelectorAll('tr.lecture-user');
 var out=[];
@@ -2363,6 +2367,7 @@ prompt('edu.kada.or.kr 레코드 목록',JSON.stringify(out));
     }
 
     function importJsonFile(input) {
+      addLog('버튼클릭', 'JSON 파일 가져오기', '-');
       const file = input.files[0];
       if (!file) return;
       const reader = new FileReader();
@@ -2392,6 +2397,7 @@ prompt('edu.kada.or.kr 레코드 목록',JSON.stringify(out));
     }
 
     function importFromJSON() {
+      addLog('버튼클릭', 'JSON 직접 붙여넣기', '-');
       try {
         const text = document.getElementById('jsonPasteArea').value.trim();
         if (!text) return;
