@@ -996,12 +996,9 @@
     <button class="btn btn-outline"
       onclick="checkAdminAction(() => document.getElementById('importJsonFile').click())">📥 JSON 가져오기</button>
     <input type="file" id="importJsonFile" accept=".json" style="display:none" onchange="importJsonFile(this)">
-    <button class="btn btn-outline" onclick="checkAdminAction(() => openBookmarkletModal())">🔗 eKADA 붙여넣기</button>
-    <div class="sep"></div>
     <button class="btn btn-success" onclick="exportExcel()">⬇️ Excel 내보내기</button>
     <div class="sep"></div>
-    <button class="btn btn-outline" onclick="openLogsModal()">📋 로그보기</button>
-    <button class="btn btn-outline" onclick="openGroupedView()">👥 대상별 보기</button>
+    <button class="btn btn-outline" onclick="checkAdminAction(() => openLogsModal())">📋 로그보기</button>
     <div class="sep"></div>
     <button id="btnMigrate" class="btn btn-outline" onclick="migrateFromLocalStorage()" style="display:none">📤
       저장하기</button>
@@ -1425,37 +1422,6 @@
     </div>
   </div>
 
-  <!-- ===== BOOKMARKLET MODAL ===== -->
-  <div class="modal-overlay" id="bkmModal">
-    <div class="modal-box" style="max-width:640px">
-      <div class="modal-header">
-        <h2>🔗 eKADA 데이터 붙여넣기</h2>
-        <button class="modal-close" onclick="closeModal('bkmModal')">✕</button>
-      </div>
-      <div class="modal-body">
-        <p style="font-size:12px;color:var(--muted);margin-bottom:14px">
-          edu.kada.or.kr 통계 페이지에서 복사한 JSON 데이터를 아래에 붙여넣으세요.<br>
-          또는 아래 북마크릿 코드를 브라우저 북마크에 저장해서 사용하세요.
-        </p>
-        <div class="form-section">
-          <div class="form-section-title">📋 북마크릿 코드 (브라우저 북마크 URL로 저장)</div>
-          <textarea readonly rows="5" id="bookmarkletCode"
-            style="width:100%;font-size:10px;padding:8px;border:1px solid var(--border);border-radius:4px;background:#f8fafc;font-family:monospace"></textarea>
-          <button class="btn btn-outline" style="margin-top:6px" onclick="copyBookmarklet()">📋 코드 복사</button>
-        </div>
-        <div class="form-section">
-          <div class="form-section-title">📥 JSON 데이터 붙여넣기</div>
-          <textarea id="jsonPasteArea" rows="8"
-            style="width:100%;padding:8px;border:1px solid var(--border);border-radius:4px;font-size:11px;font-family:monospace"
-            placeholder='[{"교육명":"...","교육일":"2026-01-01","권역":"서울",...}]'></textarea>
-          <button class="btn btn-primary" style="margin-top:8px" onclick="importFromJSON()">📥 가져오기</button>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-outline" onclick="closeModal('bkmModal')">닫기</button>
-      </div>
-    </div>
-  </div>
 
   <!-- ===== LOGS MODAL ===== -->
   <div class="modal-overlay" id="logsModal">
@@ -1493,20 +1459,6 @@
     </div>
   </div>
 
-  <!-- ===== GROUPED VIEW MODAL ===== -->
-  <div class="modal-overlay" id="groupedModal">
-    <div class="modal-box" style="max-width:1200px">
-      <div class="modal-header">
-        <h2>👥 대상별 구분 보기</h2>
-        <button class="modal-close" onclick="closeModal('groupedModal')">✕</button>
-      </div>
-      <div class="modal-body" id="groupedContent" style="max-height:75vh;overflow-y:auto">
-        <div style="text-align:center;color:var(--muted);padding:40px">
-          대상별로 그룹화된 데이터를 표시합니다.
-        </div>
-      </div>
-    </div>
-  </div>
 
   <!-- Toast container -->
   <div class="toast-container" id="toastContainer"></div>
@@ -2328,31 +2280,7 @@
       showToast(`${records.length}건 Excel 내보내기 완료`, 'success');
     }
 
-    // ================================================================
-    // BOOKMARKLET
-    // ================================================================
-    function openBookmarkletModal() {
-      addLog('버튼클릭', 'eKADA 붙여넣기', '-');
-      const code = `javascript:(function(){
-var rows=document.querySelectorAll('tr.lecture-user');
-var out=[];
-rows.forEach(function(tr){
-  var id=tr.querySelector('[data-id]');
-  if(id)out.push({id:id.getAttribute('data-id'),
-    교육명:(tr.querySelector('td:nth-child(2)')||{}).innerText||''
-  });
-});
-prompt('edu.kada.or.kr 레코드 목록',JSON.stringify(out));
-})();`;
-      document.getElementById('bookmarkletCode').value = code;
-      document.getElementById('bkmModal').classList.add('active');
-    }
 
-    function copyBookmarklet() {
-      document.getElementById('bookmarkletCode').select();
-      document.execCommand('copy');
-      showToast('복사됨', 'success');
-    }
 
     function extractArrayFromJson(data) {
       // 1) 배열이면 그대로
@@ -2393,33 +2321,6 @@ prompt('edu.kada.or.kr 레코드 목록',JSON.stringify(out));
       reader.readAsText(file, 'utf-8');
     }
 
-    function importFromJSON() {
-      addLog('버튼클릭', 'JSON 직접 붙여넣기', '-');
-      try {
-        const text = document.getElementById('jsonPasteArea').value.trim();
-        if (!text) return;
-        const data = JSON.parse(text);
-        const arr = extractArrayFromJson(data);
-        let cnt = 0;
-        const toAdd = [];
-        arr.forEach(item => {
-          if (item.교육명 || item.name) {
-            const r = { 교육명: item.교육명 || item.name || '', ...item };
-            delete r._id;
-            toAdd.push(r);
-            cnt++;
-          }
-        });
-        saveBatchToFirestore(toAdd)
-          .then(() => {
-            closeModal('bkmModal');
-            showToast(`${cnt}건 가져오기 완료`, 'success');
-          })
-          .catch(e => showToast('저장 실패: ' + e.message, 'error'));
-      } catch (e) {
-        showToast('JSON 파싱 오류: ' + e.message, 'error');
-      }
-    }
 
     // ================================================================
     // TOAST
@@ -2517,61 +2418,6 @@ prompt('edu.kada.or.kr 레코드 목록',JSON.stringify(out));
       showToast('로그 초기화됨', 'success');
     }
 
-    // ================================================================
-    // GROUPED VIEW
-    // ================================================================
-    function openGroupedView() {
-      const grouped = {};
-      const filtered = filteredRecords();
-
-      filtered.forEach(({ r }) => {
-        const key = r.메모_현장인원 || '[분류 없음]';
-        if (!grouped[key]) grouped[key] = [];
-        grouped[key].push(r);
-      });
-
-      let html = '';
-      for (const group in grouped) {
-        const groupRecs = grouped[group];
-        const groupTotal = groupRecs.reduce((s, r) => s + getTotal(r), 0);
-        html += `
-      <div class="group-section">
-        <div class="group-header" onclick="this.nextElementSibling.classList.toggle('expanded')">
-          <span>${group} (${groupRecs.length}건, ${groupTotal}명)</span>
-          <span style="font-size:14px">▶</span>
-        </div>
-        <div class="group-content expanded">
-          <table class="group-table">
-            <thead>
-              <tr>
-                <th>교육명</th>
-                <th>교육일</th>
-                <th>권역</th>
-                <th>기관명</th>
-                <th>합계</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${groupRecs.map(r => `
-                <tr>
-                  <td>${r.교육명 || ''}</td>
-                  <td>${r.교육일 ? String(r.교육일).substring(0, 10) : ''}</td>
-                  <td>${r.권역 || ''}</td>
-                  <td>${r.기관명 || ''}</td>
-                  <td style="font-weight:600;color:var(--accent)">${getTotal(r)}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    `;
-      }
-
-      if (!html) html = '<div style="text-align:center;padding:40px;color:var(--muted)">표시할 데이터가 없습니다.</div>';
-      document.getElementById('groupedContent').innerHTML = html;
-      document.getElementById('groupedModal').classList.add('active');
-    }
 
     // ================================================================
     // PARTICIPANTS LOADING
