@@ -1974,7 +1974,7 @@
 
     // 관리자 기능 실행 전 비밀번호 확인
     function checkAdminAction(callback) {
-      const pw = prompt('비밀번호를 입력하세요 (0318@):');
+      const pw = prompt('비밀번호를 입력하세요:');
       if (pw === '0318@') {
         addLog('보안', '관리자 인증', '성공');
         callback();
