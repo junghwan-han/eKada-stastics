@@ -1058,7 +1058,7 @@
     <div class="filter-row">
       <div style="display:flex;align-items:center;gap:6px">
         <span style="font-size:11px;font-weight:700;color:var(--muted)">🔍</span>
-        <input type="text" id="searchInput" placeholder="교육명 검색..." oninput="renderTable()">
+        <input type="text" id="searchInput" placeholder="🔍 전체 검색 (교육명, 기관명, 담당자, 강사, 권역...)" oninput="renderTable()" style="min-width:260px;">
       </div>
       <div class="filter-divider"></div>
       <div class="filter-group">
@@ -1472,18 +1472,37 @@
 
   <!-- ===== LOGS MODAL ===== -->
   <div class="modal-overlay" id="logsModal">
-    <div class="modal-box" style="max-width:1000px">
+    <div class="modal-box" style="max-width:1100px">
       <div class="modal-header">
         <h2>📋 수정 로그 히스토리</h2>
         <button class="modal-close" onclick="closeModal('logsModal')">✕</button>
       </div>
+      <!-- 로그 검색 & 필터 바 -->
+      <div style="padding:12px 16px; border-bottom:1px solid #e5e7eb; background:#f9fafb; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+        <input type="text" id="logSearchInput" placeholder="🔍 로그 검색 (교육명, 항목, 내용...)" oninput="renderLogs()"
+          style="flex:1; min-width:200px; padding:6px 10px; border:1px solid #d1d5db; border-radius:6px; font-size:13px;">
+        <select id="logTypeFilter" onchange="renderLogs()"
+          style="padding:6px 10px; border:1px solid #d1d5db; border-radius:6px; font-size:13px; background:white;">
+          <option value="">전체 유형</option>
+          <option value="수정">✏️ 수정</option>
+          <option value="신규추가">➕ 신규추가</option>
+          <option value="삭제">🗑️ 삭제</option>
+          <option value="검색">🔍 검색</option>
+          <option value="보안">🔐 보안</option>
+          <option value="백업">💾 백업</option>
+          <option value="복구">🔄 복구</option>
+          <option value="버튼클릭">👆 기타</option>
+        </select>
+        <span id="logCount" style="font-size:12px; color:var(--muted); white-space:nowrap;"></span>
+        <button onclick="renderLogs()" class="btn btn-outline" style="padding:5px 12px; font-size:12px;">새로고침</button>
+      </div>
       <div class="modal-body" style="padding:0">
-        <div id="logsContainer" style="max-height:600px;overflow-y:auto">
+        <div id="logsContainer" style="max-height:560px;overflow-y:auto">
           <div style="padding:40px;text-align:center;color:var(--muted)">로그 불러오는 중...</div>
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-outline" onclick="clearLogsData()">로그 초기화</button>
+        <button class="btn btn-outline" onclick="checkAdminAction(() => clearLogsData())" style="color:#dc2626">🗑️ 로그 초기화</button>
         <button class="btn btn-outline" onclick="closeModal('logsModal')">닫기</button>
       </div>
     </div>
@@ -1791,10 +1810,20 @@
     }
 
     function filteredRecords() {
-      const q = document.getElementById('searchInput').value.toLowerCase();
+      const q = document.getElementById('searchInput').value.toLowerCase().trim();
       const filters = getSelectedFilters();
       let result = records.map((r, i) => ({ r, i })).filter(({ r }) => {
-        if (q && !((r.교육명 || '').toLowerCase().includes(q))) return false;
+        if (q) {
+          // 모든 텍스트 필드에서 검색
+          const searchFields = [
+            r.교육명, r.기관명, r.담당자, r.강사, r.권역,
+            r.교육유형, r.자원, r.비고, r.장소, r.월,
+            String(r.인원 || ''), String(r.예산 || ''),
+            String(r.일 || ''), String(r.월 || '')
+          ];
+          const combined = searchFields.filter(Boolean).join(' ').toLowerCase();
+          if (!combined.includes(q)) return false;
+        }
         if (filters.months.length > 0 && !filters.months.includes(String(r.월))) return false;
         if (filters.regions.length > 0 && !filters.regions.includes(r.권역)) return false;
         if (filters.types.length > 0 && !filters.types.includes(r.교육유형)) return false;
@@ -2670,32 +2699,166 @@
 
     function renderLogs() {
       const container = document.getElementById('logsContainer');
+      const logCountEl = document.getElementById('logCount');
+
       if (!logs || logs.length === 0) {
         container.innerHTML = '<div style="padding:40px;text-align:center;color:var(--muted)">로그 기록이 없습니다.</div>';
+        if (logCountEl) logCountEl.textContent = '';
         return;
       }
 
-      // 역순 (최신순)
-      const sorted = [...logs].reverse();
-      container.innerHTML = sorted.map(log => {
-        let dateStr = '알 수 없음';
+      // 필터 값 읽기
+      const logSearchEl = document.getElementById('logSearchInput');
+      const logTypeEl = document.getElementById('logTypeFilter');
+      const searchQ = logSearchEl ? logSearchEl.value.toLowerCase().trim() : '';
+      const typeFilter = logTypeEl ? logTypeEl.value : '';
+
+      // 로그 타입별 색상/아이콘 설정
+      const logTypeConfig = {
+        '신규추가':  { icon: '➕', color: '#16a34a', bg: '#dcfce7', label: '신규추가' },
+        '수정':      { icon: '✏️', color: '#2563eb', bg: '#dbeafe', label: '수정' },
+        '삭제':      { icon: '🗑️', color: '#dc2626', bg: '#fee2e2', label: '삭제' },
+        '검색':      { icon: '🔍', color: '#7c3aed', bg: '#ede9fe', label: '검색' },
+        '보안':      { icon: '🔐', color: '#d97706', bg: '#fef3c7', label: '보안' },
+        '백업':      { icon: '💾', color: '#0891b2', bg: '#cffafe', label: '백업' },
+        '복구':      { icon: '🔄', color: '#059669', bg: '#d1fae5', label: '복구' },
+        '버튼클릭':  { icon: '👆', color: '#6b7280', bg: '#f3f4f6', label: '기타' },
+        '엑셀가져오기': { icon: '📥', color: '#0369a1', bg: '#e0f2fe', label: '가져오기' },
+      };
+
+      function getLogType(log) {
+        // field가 신규추가/삭제/검색/보안/백업/복구/버튼클릭/엑셀가져오기인 경우
+        const knownTypes = ['신규추가','삭제','검색','보안','백업','복구','버튼클릭','엑셀가져오기'];
+        if (knownTypes.includes(log.field)) return log.field;
+        // change가 '삭제'인 경우
+        if (log.change === '삭제') return '삭제';
+        // 그 외는 '수정' (교육명이 field인 경우)
+        return '수정';
+      }
+
+      function formatRelativeTime(date) {
+        const now = new Date();
+        const diff = Math.floor((now - date) / 1000);
+        if (diff < 60) return `${diff}초 전`;
+        if (diff < 3600) return `${Math.floor(diff/60)}분 전`;
+        if (diff < 86400) return `${Math.floor(diff/3600)}시간 전`;
+        if (diff < 604800) return `${Math.floor(diff/86400)}일 전`;
+        return null;
+      }
+
+      function formatDate(log) {
+        try {
+          if (!log.timestamp) return '날짜 없음';
+          const d = (typeof log.timestamp.toDate === 'function') ? log.timestamp.toDate() : new Date(log.timestamp);
+          if (isNaN(d)) return '날짜 오류';
+          const rel = formatRelativeTime(d);
+          const full = d.toLocaleString('ko-KR', {
+            year: 'numeric', month: '2-digit', day: '2-digit',
+            hour: '2-digit', minute: '2-digit', second: '2-digit'
+          });
+          return rel ? `<span title="${full}">${rel}</span>` : `<span>${full}</span>`;
+        } catch (e) { return '날짜 오류'; }
+      }
+
+      // 역순(최신순) + 필터 적용
+      let sorted = [...logs].reverse();
+
+      if (typeFilter) {
+        sorted = sorted.filter(log => {
+          const t = getLogType(log);
+          if (typeFilter === '버튼클릭') return t === '버튼클릭' || t === '엑셀가져오기';
+          if (typeFilter === '수정') return t === '수정';
+          return t === typeFilter;
+        });
+      }
+
+      if (searchQ) {
+        sorted = sorted.filter(log => {
+          const combined = [log.field, log.change, log.value].filter(Boolean).join(' ').toLowerCase();
+          return combined.includes(searchQ);
+        });
+      }
+
+      if (logCountEl) {
+        logCountEl.textContent = `총 ${logs.length}건 중 ${sorted.length}건 표시`;
+      }
+
+      if (sorted.length === 0) {
+        container.innerHTML = '<div style="padding:40px;text-align:center;color:var(--muted)">조건에 맞는 로그가 없습니다.</div>';
+        return;
+      }
+
+      // 날짜별 그룹핑
+      const groups = {};
+      sorted.forEach(log => {
+        let dayKey = '날짜 없음';
         try {
           if (log.timestamp) {
             const d = (typeof log.timestamp.toDate === 'function') ? log.timestamp.toDate() : new Date(log.timestamp);
-            dateStr = d.toLocaleString();
+            if (!isNaN(d)) dayKey = d.toLocaleDateString('ko-KR', { year:'numeric', month:'long', day:'numeric', weekday:'short' });
           }
-        } catch (e) { console.error('Date parsing error', e); }
+        } catch(e) {}
+        if (!groups[dayKey]) groups[dayKey] = [];
+        groups[dayKey].push(log);
+      });
+
+      container.innerHTML = Object.entries(groups).map(([day, dayLogs]) => {
+        const rows = dayLogs.map(log => {
+          const logType = getLogType(log);
+          const cfg = logTypeConfig[logType] || { icon: '•', color: '#6b7280', bg: '#f3f4f6', label: logType };
+          const isMod = logType === '수정';
+
+          // 수정 로그: field=교육명, change=필드명, value='이전→이후'
+          let mainTitle = '';
+          let subContent = '';
+
+          if (isMod) {
+            mainTitle = `<span style="font-weight:700; color:#1e293b;">${escHtml(log.field || '')}</span>`;
+            const changeParts = (log.value || '').split(' → ');
+            if (changeParts.length === 2) {
+              subContent = `
+                <span style="color:#6b7280;">[${escHtml(log.change || '')}]</span>
+                <span style="background:#fee2e2; color:#dc2626; padding:1px 5px; border-radius:3px; margin:0 4px; font-size:11px;">${escHtml(changeParts[0])}</span>
+                <span style="color:#9ca3af;">→</span>
+                <span style="background:#dcfce7; color:#16a34a; padding:1px 5px; border-radius:3px; margin:0 4px; font-size:11px;">${escHtml(changeParts[1])}</span>
+              `;
+            } else {
+              subContent = `<span style="color:#374151;">${escHtml(log.change || '')} : ${escHtml(log.value || '')}</span>`;
+            }
+          } else {
+            mainTitle = `<span style="font-weight:700; color:#1e293b;">${escHtml(log.change || '')}</span>`;
+            subContent = log.value ? `<span style="color:#6b7280;">${escHtml(log.value)}</span>` : '';
+          }
+
+          return `
+            <div style="display:grid; grid-template-columns:90px 1fr auto; align-items:start; gap:8px; padding:9px 16px; border-bottom:1px solid #f1f5f9; transition:background 0.1s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+              <div>
+                <span style="display:inline-block; padding:2px 7px; border-radius:10px; font-size:11px; font-weight:700; background:${cfg.bg}; color:${cfg.color};">
+                  ${cfg.icon} ${cfg.label}
+                </span>
+              </div>
+              <div style="font-size:12px; line-height:1.7;">
+                <div>${mainTitle}</div>
+                <div style="margin-top:2px;">${subContent}</div>
+              </div>
+              <div style="font-size:11px; color:#9ca3af; white-space:nowrap; text-align:right; padding-top:2px;">
+                ${formatDate(log)}
+              </div>
+            </div>
+          `;
+        }).join('');
 
         return `
-           <div class="log-item" style="padding:10px 15px; border-bottom:1px solid #eee; font-size:12px">
-             <div style="display:flex; justify-content:space-between; margin-bottom:4px">
-               <span style="font-weight:700; color:var(--accent)">[${log.field}]</span>
-               <span style="color:var(--muted); font-size:10px">${dateStr}</span>
-             </div>
-             <div style="color:#333"><strong>${log.change}</strong>: ${log.value}</div>
-           </div>
-         `;
+          <div style="background:#f1f5f9; padding:5px 16px; font-size:11px; font-weight:700; color:#64748b; border-bottom:1px solid #e2e8f0; position:sticky; top:0; z-index:1;">
+            ${day} &nbsp;·&nbsp; ${dayLogs.length}건
+          </div>
+          ${rows}
+        `;
       }).join('');
+    }
+
+    function escHtml(str) {
+      return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
 
     function clearLogsData() {
