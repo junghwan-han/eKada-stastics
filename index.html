@@ -1003,8 +1003,8 @@
     <button class="btn btn-outline" onclick="openLogsModal()">📋 로그보기</button>
     <button class="btn btn-outline" onclick="openGroupedView()">👥 대상별 보기</button>
     <div class="sep"></div>
-    <button id="btnMigrate" class="btn btn-outline" onclick="migrateFromLocalStorage()"
-      style="display:none;color:#16a34a;border-color:#16a34a;font-weight:700">📤 저장하기</button>
+    <button id="btnMigrate" class="btn btn-outline" onclick="migrateFromLocalStorage()" style="display:none">📤
+      저장하기</button>
     <button class="btn btn-outline" onclick="clearAllData()" style="color:#dc2626">🗑️ 전체 삭제</button>
   </div>
 
@@ -2045,14 +2045,37 @@
         // 수정: 기존 레코드의 Firestore 문서만 업데이트
         const oldRecord = records.find(rec => rec._id === editingId);
         const updated = { ...oldRecord, ...r }; // 폼에 없는 필드(참여자수 등) 보존
+
+        // 데이터 변경 로그 남기기
         for (const key in r) {
           if (JSON.stringify(oldRecord[key]) !== JSON.stringify(r[key])) {
             addLog(oldRecord.교육명, key, String(oldRecord[key]) + ' → ' + String(r[key]));
           }
         }
-        db.collection(FS_COL).doc(editingId).set(updated)
-          .then(() => showToast('수정 완료', 'success'))
-          .catch(e => showToast('저장 실패: ' + e.message, 'error'));
+
+        if (editingId.includes('_')) {
+          // 벌크 데이터(배열) 내의 레코드 수정 처리
+          const [docId, index] = editingId.split('_');
+          const idx = parseInt(index);
+          db.collection(FS_COL).doc(docId).get().then(doc => {
+            if (doc.exists) {
+              const data = doc.data();
+              if (data.records && Array.isArray(data.records)) {
+                data.records[idx] = { ...data.records[idx], ...r };
+                return db.collection(FS_COL).doc(docId).set(data);
+              }
+            }
+            // 예외 상황 대비하여 개별 문서로라도 저장 (중복 방지를 위해 editingId 그대로 사용)
+            return db.collection(FS_COL).doc(editingId).set(updated);
+          })
+            .then(() => showToast('수정 완료', 'success'))
+            .catch(e => showToast('저장 실패: ' + e.message, 'error'));
+        } else {
+          // 개별 문서 수정
+          db.collection(FS_COL).doc(editingId).set(updated)
+            .then(() => showToast('수정 완료', 'success'))
+            .catch(e => showToast('저장 실패: ' + e.message, 'error'));
+        }
       } else {
         // 신규: 새 Firestore 문서 추가 (자동 ID)
         addLog('신규추가', '교육명', name);
