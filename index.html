@@ -1775,6 +1775,13 @@
     function renderTable() {
       const tbody = document.getElementById('tableBody');
       const emptyState = document.getElementById('emptyState');
+
+      const searchVal = document.getElementById('searchInput').value.toLowerCase().trim();
+      if (searchVal && window.lastSearchTerm !== searchVal) {
+        window.lastSearchTerm = searchVal;
+        addLog('검색', '검색어', searchVal);
+      }
+
       const filtered = filteredRecords();
       updateStats(filtered.map(f => f.r));
 
@@ -2473,30 +2480,27 @@ prompt('edu.kada.or.kr 레코드 목록',JSON.stringify(out));
     // LOGS MANAGEMENT
     // ================================================================
     function openLogsModal() {
+      addLog('버튼클릭', '로그보기', '-');
       const container = document.getElementById('logsContainer');
-      // 대상별 인원수 수정 내역만 표시
-      const isFalsy = v => v === 'undefined' || v === 'null' || v === '0' || v === '';
-      const modLogs = logs.filter(log => {
-        if (!TARGET_KEYS.includes(log.change)) return false;
-        // 양쪽 다 빈값(null/undefined)이면 실제 변경 없음 → 숨김
-        const parts = String(log.value).split(' → ');
-        const before = String(parts[0] ?? '').trim();
-        const after = String(parts[1] ?? '').trim();
-        return !(isFalsy(before) && isFalsy(after));
-      });
-      if (modLogs.length === 0) {
-        container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted)">수정 로그가 없습니다.</div>';
+      // 모든 로그 표시 (최신순)
+      const allLogs = [...logs].reverse();
+
+      if (allLogs.length === 0) {
+        container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted)">로그 기록이 없습니다.</div>';
       } else {
-        container.innerHTML = modLogs.map(log => `
-      <div class="log-item">
-        <div class="log-id">${log.field}</div>
-        <div class="log-field">${log.change}</div>
-        <div class="log-change">${log.value}</div>
-        <div class="log-time">${log.timestamp}</div>
-      </div>
-    `).reverse().join('');
+        let html = '<table class="logs-table"><thead><tr><th>일시</th><th>내용/항목</th><th>분류/동작</th><th>값/상세</th></tr></thead><tbody>';
+        allLogs.forEach(log => {
+          html += `<tr>
+            <td>${log.timestamp}</td>
+            <td style="font-weight:700">${log.field || '-'}</td>
+            <td style="color:var(--accent)">${log.change || '-'}</td>
+            <td style="white-space:pre-wrap">${log.value || '-'}</td>
+          </tr>`;
+        });
+        html += '</tbody></table>';
+        container.innerHTML = html;
       }
-      document.getElementById('logsModal').classList.add('active');
+      openModal('logsModal');
     }
 
     function clearLogsData() {
@@ -2767,7 +2771,7 @@ prompt('edu.kada.or.kr 레코드 목록',JSON.stringify(out));
       buildHeader();
       renderTable(); // 초기 빈 테이블 먼저 표시
       initFirestore(); // Firestore 실시간 연결 (데이터 오면 자동 renderTable)
-      checkMigrateButton(); // 로컬 데이터 있으면 마이그레이션 버튼 표시
+      // checkMigrateButton(); // 로컬 데이터 있으면 마이그레이션 버튼 표시
     });
 
     // (참여자명단 탭 제거로 modal-tab 이벤트 바인딩 불필요)
