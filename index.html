@@ -954,6 +954,54 @@
         transform: rotate(360deg);
       }
     }
+
+    .backup-item {
+      padding: 12px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #fff;
+      transition: background 0.2s;
+    }
+
+    .backup-item:hover {
+      background: #f8fafc;
+    }
+
+    .backup-item:last-child {
+      border-bottom: none;
+    }
+
+    .backup-date {
+      font-weight: 700;
+      font-size: 13px;
+      color: var(--text);
+    }
+
+    .backup-meta {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .backup-info-box {
+      background: #eff6ff;
+      padding: 14px;
+      border-radius: 8px;
+      font-size: 12px;
+      color: #1e40af;
+      border-left: 4px solid #3b82f6;
+      margin-bottom: 20px;
+      line-height: 1.6;
+    }
+
+    .backup-list-container {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+      background: #fdfdfd;
+    }
   </style>
   <!-- Firebase SDK (compat) -->
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
@@ -998,10 +1046,9 @@
     <input type="file" id="importJsonFile" accept=".json" style="display:none" onchange="importJsonFile(this)">
     <button class="btn btn-success" onclick="exportExcel()">⬇️ Excel 내보내기</button>
     <div class="sep"></div>
+    <button class="btn btn-outline" onclick="checkAdminAction(() => openBackupModal())">💾 백업/복구</button>
     <button class="btn btn-outline" onclick="checkAdminAction(() => openLogsModal())">📋 로그보기</button>
     <div class="sep"></div>
-    <button id="btnMigrate" class="btn btn-outline" onclick="migrateFromLocalStorage()" style="display:none">📤
-      저장하기</button>
     <button class="btn btn-outline" onclick="clearAllData()" style="color:#dc2626">🗑️ 전체 삭제</button>
   </div>
 
@@ -1442,22 +1489,44 @@
     </div>
   </div>
 
-  <!-- ===== PARTICIPANTS VIEW MODAL (사용 안함 – hidden) ===== -->
-  <div class="modal-overlay" id="participantsModal" style="display:none">
-    <div class="modal-box" style="max-width:560px">
+  <!-- ===== BACKUP MODAL ===== -->
+  <div class="modal-overlay" id="backupModal">
+    <div class="modal-box" style="max-width:650px">
       <div class="modal-header">
-        <h2 id="participantsModalTitle">📊 대상별 예상 인원</h2>
-        <button class="modal-close" onclick="closeModal('participantsModal')">✕</button>
+        <h2>💾 데이터 백업 및 복구 관리</h2>
+        <button class="modal-close" onclick="closeModal('backupModal')">✕</button>
       </div>
-      <div class="modal-body" style="padding:0">
-        <div id="participantsViewList" style="max-height:520px;overflow-y:auto"></div>
+      <div class="modal-body">
+        <div class="backup-info-box" id="lastBackupStatus">
+          데이터베이스 백업 상태를 확인 중...
+        </div>
+
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:20px;">
+          <button class="btn btn-primary" onclick="performManualBackup()" style="justify-content:center">➕ 지금 새 백업
+            생성</button>
+          <button class="btn btn-outline" onclick="downloadCurrentData()" style="justify-content:center">📥 JSON
+            다운로드</button>
+        </div>
+
+        <div style="margin-bottom:10px; display:flex; justify-content:space-between; align-items:flex-end">
+          <span style="font-weight:700; font-size:14px">📁 저장된 백업 목록 (최근 15개)</span>
+          <span style="font-size:11px; color:var(--muted)">2주마다 자동 백업이 실행됩니다.</span>
+        </div>
+
+        <div class="backup-list-container">
+          <div id="backupList" style="max-height:350px; overflow-y:auto">
+            <div style="padding:40px; text-align:center; color:var(--muted)">백업 내역이 없습니다.</div>
+          </div>
+        </div>
       </div>
       <div class="modal-footer">
-        <span style="font-size:11px;color:var(--muted)">※ 예상 인원 기준 (읽기 전용)</span>
-        <button class="btn btn-outline" onclick="closeModal('participantsModal')">닫기</button>
+        <button class="btn btn-outline" onclick="checkAdminAction(() => openLogsModal())">📋 로그 이력보기</button>
+        <div style="flex:1"></div>
+        <button class="btn btn-outline" onclick="closeModal('backupModal')">닫기</button>
       </div>
     </div>
   </div>
+
 
 
   <!-- Toast container -->
@@ -1529,8 +1598,10 @@
     let savedColWidths = []; // 사용자가 조절한 컬럼 너비 저장
 
     // ── Firestore 연동 ──────────────────────────────────────────────
-    const FS_COL = 'ekada2026';       // 교육 레코드 컬렉션 (문서 1개 = 레코드 1개)
-    const FS_LOG_DOC = 'logs';        // 로그 전용 문서명 (사용자 요청 경로: ekada2026/logs)
+    const FS_COL = 'ekada2026';       // 교육 레코드 컬렉션
+    const FS_LOG_DOC = 'logs';        // 로그 문서명
+    const FS_META_DOC = 'metadata';   // 설정 및 상태 메타데이터
+    const FS_BACKUP_COL = 'backups';  // 백업 아카이브 컬렉션
 
     // saveData는 더 이상 전체 배열을 저장하지 않음 (개별 저장 방식으로 변경)
     // 하위 호환성을 위해 남겨둠 (import 함수에서 배치 저장 후 불필요)
@@ -1554,15 +1625,19 @@
 
     // 실시간 리스너: 컬렉션 전체 구독 → 누가 추가/수정/삭제해도 모두 자동 반영
     function initFirestore() {
-      // 로그 로드 (사용자 요청 주소인 ekada2026/logs 에서 읽어옴)
+      // 1. 로그 로드
       db.collection(FS_COL).doc(FS_LOG_DOC).get().then(doc => {
         if (doc.exists) logs = doc.data().logs || [];
       });
-      // 교육 데이터: 컬렉션 단위 실시간 구독
+
+      // 2. 자동 백업 체크 (2주 주기)
+      checkAutoBackup();
+
+      // 3. 교육 데이터 실시간 구독
       db.collection(FS_COL).onSnapshot(snap => {
         let allRecords = [];
         snap.docs.forEach(doc => {
-          if (doc.id === FS_LOG_DOC) return;
+          if (doc.id === FS_LOG_DOC || doc.id === FS_META_DOC) return;
 
           const data = doc.data();
           let rawList = [];
@@ -1597,8 +1672,10 @@
       });
     }
     function addLog(field, change, value) {
+      // Use Date object for local usage, saveLogs will handle storage
+      const now = new Date();
       logs.push({
-        timestamp: new Date().toLocaleString('ko-KR'),
+        timestamp: firebase.firestore.Timestamp.fromDate(now), // Use Firestore Timestamp object
         field: field,
         change: change,
         value: value
@@ -1717,14 +1794,15 @@
       return result;
     }
 
+    let lastSearchTime = 0;
     function renderTable() {
       const tbody = document.getElementById('tableBody');
       const emptyState = document.getElementById('emptyState');
 
       const searchVal = document.getElementById('searchInput').value.toLowerCase().trim();
-      if (searchVal && window.lastSearchTerm !== searchVal) {
-        window.lastSearchTerm = searchVal;
-        addLog('검색', '검색어', searchVal);
+      if (searchVal && Date.now() - lastSearchTime > 1000) {
+        addLog('검색', '검색어 입력', searchVal);
+        lastSearchTime = Date.now();
       }
 
       const filtered = filteredRecords();
@@ -1896,11 +1974,13 @@
 
     // 관리자 기능 실행 전 비밀번호 확인
     function checkAdminAction(callback) {
-      const pw = prompt('관리자 비밀번호를 입력하세요:');
+      const pw = prompt('비밀번호를 입력하세요 (0318@):');
       if (pw === '0318@') {
+        addLog('보안', '관리자 인증', '성공');
         callback();
       } else if (pw !== null) {
-        showToast('비밀번호가 틀렸습니다.', 'error');
+        addLog('보안', '관리자 인증', '실패 (비밀번호 틀림)');
+        alert('비밀번호가 틀렸습니다.');
       }
     }
 
@@ -2024,11 +2104,14 @@
                 return db.collection(FS_COL).doc(docId).set(data);
               }
             }
-            // 예외 상황 대비하여 개별 문서로라도 저장 (중복 방지를 위해 editingId 그대로 사용)
-            return db.collection(FS_COL).doc(editingId).set(updated);
+            // 벌크 데이터 문서를 찾을 수 없는 경우 오류 발생시켜 더 안전하게 처리
+            throw new Error('데이터 소스를 찾을 수 없습니다.');
           })
             .then(() => showToast('수정 완료', 'success'))
-            .catch(e => showToast('저장 실패: ' + e.message, 'error'));
+            .catch(e => {
+              console.error('수정 실패:', e);
+              showToast('수정 실패: ' + e.message, 'error');
+            });
         } else {
           // 개별 문서 수정
           db.collection(FS_COL).doc(editingId).set(updated)
@@ -2296,25 +2379,24 @@
       const file = input.files[0];
       if (!file) return;
       const reader = new FileReader();
-      reader.onload = function (e) {
+      reader.onload = async function (e) {
         try {
           const data = JSON.parse(e.target.result);
           const arr = extractArrayFromJson(data);
-          let cnt = 0;
-          const toAdd = [];
+          const finalData = [];
           arr.forEach(item => {
             if (item.교육명 || item.name) {
               const r = { 교육명: item.교육명 || item.name || '', ...item };
               delete r._id; // 기존 _id 제거 (Firestore가 새로 부여)
-              toAdd.push(r);
-              cnt++;
+              finalData.push(r);
             }
           });
-          saveBatchToFirestore(toAdd)
-            .then(() => showToast(`${cnt}건 가져오기 완료`, 'success'))
-            .catch(e => showToast('저장 실패: ' + e.message, 'error'));
-        } catch (err) {
-          showToast('JSON 파싱 오류: ' + err.message, 'error');
+          await saveBatchToFirestore(finalData);
+          showToast(`${finalData.length}건을 성공적으로 가져왔습니다.`);
+          addLog('엑셀가져오기', '성공', `${finalData.length}건`);
+        } catch (e) {
+          alert('가져오기 오류: ' + e.message);
+          addLog('엑셀가져오기', '실패', e.message);
         }
         input.value = '';
       };
@@ -2384,38 +2466,220 @@
     }
 
     // ================================================================
+    // BACKUP & RESTORE
+    // ================================================================
+    function openBackupModal() {
+      renderBackupList();
+      updateBackupInfo();
+      openModal('backupModal');
+    }
+
+    function updateBackupInfo() {
+      db.collection(FS_COL).doc(FS_META_DOC).get().then(doc => {
+        const el = document.getElementById('lastBackupStatus');
+        if (doc.exists && doc.data().lastBackupAt) {
+          const date = doc.data().lastBackupAt.toDate();
+          const diff = Math.floor((new Date() - date) / (1000 * 60 * 60 * 24));
+          el.innerHTML = `✅ <strong>마지막 백업:</strong> ${date.toLocaleString()}<br>⏰ <strong>경과일:</strong> ${diff}일 전 (14일 주기로 자동 실행)`;
+        } else {
+          el.innerHTML = `ℹ️ 생성된 백업 내역이 없습니다. (14일 주기로 자동 실행)`;
+        }
+      });
+    }
+
+    function checkAutoBackup() {
+      db.collection(FS_COL).doc(FS_META_DOC).get().then(doc => {
+        let needsBackup = false;
+        if (!doc.exists || !doc.data().lastBackupAt) {
+          needsBackup = true;
+        } else {
+          const last = doc.data().lastBackupAt.toDate();
+          const diff = Date.now() - last.getTime();
+          if (diff > 14 * 24 * 60 * 60 * 1000) needsBackup = true;
+        }
+
+        if (needsBackup) {
+          console.log('2주 경과 - 자동 백업 실행 중...');
+          performBackup(true);
+        }
+      });
+    }
+
+    async function performBackup(isAuto = false) {
+      try {
+        // 1. 모든 데이터 스냅샷 (logs, metadata 제외)
+        const snap = await db.collection(FS_COL).get();
+        const dataToBackup = [];
+        snap.docs.forEach(doc => {
+          if (doc.id === FS_LOG_DOC || doc.id === FS_META_DOC) return;
+          dataToBackup.push({ id: doc.id, data: doc.data() });
+        });
+
+        if (dataToBackup.length === 0 && !isAuto) {
+          showToast('백업할 데이터가 없습니다.', 'error');
+          return;
+        }
+
+        // 2. 백업 데이터 저장
+        const backupRef = db.collection(FS_BACKUP_COL).doc();
+        await backupRef.set({
+          timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+          recordCount: dataToBackup.length,
+          type: isAuto ? '자동' : '수동',
+          payload: JSON.stringify(dataToBackup) // 문서 구조 보존을 위해 JSON 문자열로 저장
+        });
+
+        // 3. 메타데이터 업데이트
+        await db.collection(FS_COL).doc(FS_META_DOC).set({
+          lastBackupAt: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+
+        if (!isAuto) {
+          showToast('백업이 완료되었습니다.', 'success');
+          renderBackupList();
+          updateBackupInfo();
+          addLog('백업', '수동백업 생성', `${dataToBackup.length}건`);
+        } else {
+          addLog('백업', '자동백업 생성', `${dataToBackup.length}건`);
+        }
+      } catch (err) {
+        console.error('백업 오류:', err);
+        if (!isAuto) showToast('백업 중 오류 발생: ' + err.message, 'error');
+      }
+    }
+
+    function performManualBackup() {
+      performBackup(false);
+    }
+
+    function renderBackupList() {
+      const container = document.getElementById('backupList');
+      db.collection(FS_BACKUP_COL).orderBy('timestamp', 'desc').limit(15).get().then(snap => {
+        if (snap.empty) {
+          container.innerHTML = '<div style="padding:40px; text-align:center; color:var(--muted)">저장된 백업이 없습니다.</div>';
+          return;
+        }
+
+        let html = '';
+        snap.docs.forEach(doc => {
+          const d = doc.data();
+          const dateStr = d.timestamp ? d.timestamp.toDate().toLocaleString() : '처리 중...';
+          html += `
+            <div class="backup-item">
+              <div>
+                <div class="backup-date">${dateStr}</div>
+                <div class="backup-meta">${d.type} 백업 | 레코드: ${d.recordCount}건</div>
+              </div>
+              <div style="display:flex; gap:6px">
+                <button class="btn btn-outline" style="font-size:11px; padding:4px 8px" onclick="restoreFromBackupId('${doc.id}')">🔄 복구</button>
+                <button class="btn btn-outline" style="font-size:11px; padding:4px 8px; color:#dc2626; border-color:#fee2e2" onclick="deleteBackup('${doc.id}')">🗑️</button>
+              </div>
+            </div>
+          `;
+        });
+        container.innerHTML = html;
+      });
+    }
+
+    async function restoreFromBackupId(backupId) {
+      if (!confirm('⚠️ 주의: 복구 시 현재 데이터가 모두 삭제되고 백업 시점의 데이터로 교체됩니다.\n정말 진행하시겠습니까?')) return;
+
+      const pw = prompt('보안을 위해 관리자 비밀번호를 입력하세요:');
+      if (pw !== '0318@') { if (pw !== null) alert('비밀번호가 틀렸습니다.'); return; }
+
+      showToast('복구 작업 시작...', 'info');
+
+      try {
+        const bDoc = await db.collection(FS_BACKUP_COL).doc(backupId).get();
+        if (!bDoc.exists) throw new Error('백업본을 찾을 수 없습니다.');
+        const payload = JSON.parse(bDoc.data().payload);
+
+        // 1. 기존 데이터 삭제 (logs, metadata 제외)
+        const currentSnap = await db.collection(FS_COL).get();
+        const batchDelete = db.batch();
+        currentSnap.docs.forEach(doc => {
+          if (doc.id === FS_LOG_DOC || doc.id === FS_META_DOC) return;
+          batchDelete.delete(doc.ref);
+        });
+        await batchDelete.commit();
+
+        // 2. 백업 데이터 복구
+        const batchRestore = db.batch();
+        payload.forEach(item => {
+          const ref = db.collection(FS_COL).doc(item.id);
+          batchRestore.set(ref, item.data);
+        });
+        await batchRestore.commit();
+
+        showToast('데이터 복구가 완료되었습니다.', 'success');
+        addLog('복구', '백업데이터 복원', `백업ID: ${backupId}`);
+        closeModal('backupModal');
+      } catch (err) {
+        alert('복구 중 오류 발생: ' + err.message);
+      }
+    }
+
+    function deleteBackup(id) {
+      if (!confirm('이 백업을 영구적으로 삭제하시겠습니까?')) return;
+      db.collection(FS_BACKUP_COL).doc(id).delete().then(() => {
+        showToast('백업이 삭제되었습니다.');
+        renderBackupList();
+      });
+    }
+
+    function downloadCurrentData() {
+      const exportData = records.map(r => {
+        const item = { ...r };
+        delete item._id; // 로컬용 ID 제거
+        return item;
+      });
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `ekada_backup_${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      addLog('버튼클릭', 'JSON 다운로드', '-');
+    }
+
+    // ================================================================
     // LOGS MANAGEMENT
     // ================================================================
     function openLogsModal() {
-      addLog('버튼클릭', '로그보기', '-');
-      const container = document.getElementById('logsContainer');
-      // 모든 로그 표시 (최신순)
-      const allLogs = [...logs].reverse();
-
-      if (allLogs.length === 0) {
-        container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted)">로그 기록이 없습니다.</div>';
-      } else {
-        let html = '<table class="logs-table"><thead><tr><th>일시</th><th>내용/항목</th><th>분류/동작</th><th>값/상세</th></tr></thead><tbody>';
-        allLogs.forEach(log => {
-          html += `<tr>
-            <td>${log.timestamp}</td>
-            <td style="font-weight:700">${log.field || '-'}</td>
-            <td style="color:var(--accent)">${log.change || '-'}</td>
-            <td style="white-space:pre-wrap">${log.value || '-'}</td>
-          </tr>`;
-        });
-        html += '</tbody></table>';
-        container.innerHTML = html;
-      }
+      renderLogs();
       openModal('logsModal');
     }
 
+    function renderLogs() {
+      const container = document.getElementById('logsContainer');
+      if (!logs || logs.length === 0) {
+        container.innerHTML = '<div style="padding:40px;text-align:center;color:var(--muted)">로그 기록이 없습니다.</div>';
+        return;
+      }
+
+      // 역순 (최신순)
+      const sorted = [...logs].reverse();
+      container.innerHTML = sorted.map(log => {
+        const d = log.timestamp ? log.timestamp.toDate() : new Date();
+        const dateStr = d.toLocaleString();
+        return `
+           <div class="log-item" style="padding:10px 15px; border-bottom:1px solid #eee; font-size:12px">
+             <div style="display:flex; justify-content:space-between; margin-bottom:4px">
+               <span style="font-weight:700; color:var(--primary)">[${log.field}]</span>
+               <span style="color:var(--muted); font-size:10px">${dateStr}</span>
+             </div>
+             <div style="color:#333"><strong>${log.change}</strong>: ${log.value}</div>
+           </div>
+         `;
+      }).join('');
+    }
+
     function clearLogsData() {
-      if (!confirm('모든 로그를 삭제하시겠습니까?')) return;
-      logs = [];
-      saveLogs();
-      openLogsModal();
-      showToast('로그 초기화됨', 'success');
+      if (!confirm('정말 모든 로그를 삭제하시겠습니까?')) return;
+      db.collection(FS_COL).doc(FS_LOG_DOC).set({ history: [] }).then(() => {
+        showToast('로그가 초기화되었습니다.');
+        renderLogs();
+      });
     }
 
 
@@ -2492,87 +2756,6 @@
       }
     }
 
-    // ================================================================
-    // PARTICIPANTS VIEW (main table – 대상별 예상 인원 로컬 표시)
-    // ================================================================
-    function openParticipantsView(idx) {
-      const record = records[idx];
-      const eduName = record.교육명 || '';
-      document.getElementById('participantsModalTitle').textContent = '📊 대상별 예상 인원 — ' + eduName;
-      document.getElementById('participantsModal').classList.add('active');
-      const listEl = document.getElementById('participantsViewList');
-
-      // 그룹 정의
-      const GROUPS = [
-        { label: '🏆 대표선수', keys: ['국가대표', '국가대표후보', '청소년대표', '꿈나무선수', 'RTPTP', '제재후복귀선수'] },
-        { label: '🏋️ 실업·직장', keys: ['직장운동경기부'] },
-        { label: '♿ 장애인', keys: ['장애인국가대표', '장애인선수', '장애인선수지원요원'] },
-        { label: '🏫 학교체육', keys: ['초등선수', '중등선수', '고등선수', '체육중', '체육고', '프로유스', '대학선수', '클럽선수반'] },
-        { label: '👩‍🏫 교육관계자', keys: ['교사', '학부모'] },
-        { label: '⚽ 프로스포츠', keys: ['프로KBL', '프로KOVO', '프로KBO', '프로WKBL', '프로KLPGA', '프로KPGA', '프로K리그', '경륜경정'] },
-        { label: '📋 지도자 자격', keys: ['1급전문', '2급전문', '1급장애', '2급장애', '1급생활', '2급생활', '건운사'] },
-        { label: '🌱 기타', keys: ['노인', '유소년', '행정가', '지도자', '트레이너', '기타'] }
-      ];
-
-      // KEY → LABEL 매핑 (TARGET_LABELS 순서에 맞게)
-      const KEY_LABEL = {};
-      TARGET_KEYS.forEach((k, i) => {
-        KEY_LABEL[k] = TARGET_LABELS[i].replace(/\n/g, ' ');
-      });
-
-      let totalSum = 0;
-      let groupHtml = '';
-
-      GROUPS.forEach(group => {
-        const rows = group.keys
-          .map(k => ({ key: k, label: KEY_LABEL[k] || k, val: parseInt(record[k]) || 0 }))
-          .filter(item => item.val > 0);
-        if (rows.length === 0) return;
-
-        const groupSum = rows.reduce((s, r) => s + r.val, 0);
-        totalSum += groupSum;
-
-        groupHtml += `
-      <div style="margin-bottom:2px">
-        <div style="padding:5px 12px;background:#f1f5f9;font-size:11px;font-weight:700;color:var(--kada-blue);
-                    border-left:3px solid var(--accent);display:flex;justify-content:space-between;align-items:center">
-          <span>${group.label}</span>
-          <span style="color:var(--accent)">${groupSum}명</span>
-        </div>
-        <table style="width:100%;border-collapse:collapse;font-size:12px">
-          ${rows.map((item, ri) => `
-          <tr style="background:${ri % 2 === 0 ? '#fff' : '#fafafa'}">
-            <td style="padding:5px 12px 5px 20px;color:var(--text)">${item.label}</td>
-            <td style="padding:5px 12px;text-align:right;font-weight:600;color:var(--accent);width:70px">${item.val}명</td>
-          </tr>`).join('')}
-        </table>
-      </div>`;
-      });
-
-      // 값이 하나도 없는 경우
-      if (totalSum === 0) {
-        listEl.innerHTML = `<div style="padding:30px;text-align:center;color:var(--muted)">
-      <div style="font-size:28px;margin-bottom:8px">📭</div>
-      <div>입력된 대상별 인원 데이터가 없습니다.</div>
-      <div style="font-size:11px;margin-top:4px">교육 수정에서 대상별 인원을 입력해 주세요.</div>
-    </div>`;
-        return;
-      }
-
-      listEl.innerHTML = `
-    <div style="padding:8px 12px;background:var(--kada-light);font-size:11px;
-                color:var(--muted);border-bottom:1px solid var(--border);
-                display:flex;justify-content:space-between;align-items:center">
-      <span>📌 <strong style="color:var(--text)">${eduName}</strong></span>
-      <span>예상 합계 <strong style="color:var(--accent);font-size:13px">${totalSum}명</strong></span>
-    </div>
-    ${groupHtml}
-    <div style="padding:8px 12px;background:#f8fafc;border-top:2px solid var(--border);
-                display:flex;justify-content:flex-end;align-items:center;font-size:13px;font-weight:700">
-      <span style="color:var(--muted);margin-right:8px">전체 합계</span>
-      <span style="color:var(--accent);font-size:15px">${totalSum}명</span>
-    </div>`;
-    }
 
     // ================================================================
     // 로컬 데이터 → Firestore 마이그레이션

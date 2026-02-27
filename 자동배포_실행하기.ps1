@@ -1,7 +1,7 @@
 # 자동 배포 스크립트 (Auto-Deployer for index.html)
 # 이 창을 띄워두고 index.html을 저장할 때마다 자동으로 깃허브에 배포됩니다.
 
-$path = "c:\Users\PC\GoogleDrive\Cash\instantFolder\!안티엑티비티\eKada-stastics"
+$path = $PSScriptRoot
 $file = "index.html"
 $fullPath = Join-Path $path $file
 
@@ -36,8 +36,21 @@ $action = {
     Write-Host "--------------------------------------------------------"
 }
 
-# 이벤트 연결
-Register-ObjectEvent $watcher "Changed" -Action $action | Out-Null
+# Remove existing event if any to avoid duplication
+Unregister-Event -SourceIdentifier "FileChanged" -ErrorAction SilentlyContinue
 
-# 계속 실행 상태 유지
+# Connect the event
+Register-ObjectEvent $watcher "Changed" -SourceIdentifier "FileChanged" -Action $action | Out-Null
+
+Write-Host "⌛ Monitoring... (Press Ctrl+C to stop)" -ForegroundColor DarkGray
+while ($true) { Start-Sleep -Seconds 1 }
+}
+
+# Remove existing event if any to avoid duplication
+Unregister-Event -SourceIdentifier "FileChanged" -ErrorAction SilentlyContinue
+
+# Connect the event
+Register-ObjectEvent $watcher "Changed" -SourceIdentifier "FileChanged" -Action $action | Out-Null
+
+Write-Host "⌛ Monitoring... (Press Ctrl+C to stop)" -ForegroundColor DarkGray
 while ($true) { Start-Sleep -Seconds 1 }
