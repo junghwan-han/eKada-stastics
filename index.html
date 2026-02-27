@@ -1642,7 +1642,7 @@
         showToast('데이터 로드 실패: ' + err.message, 'error');
       });
     }
-    function addLog(fi value) {
+    function addLog(field, change, value) {
       logs.push({
         timestamp: new Date().toLocaleString('ko-KR'),
         field: field,
