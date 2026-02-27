@@ -117,10 +117,15 @@
     text-align: center;
     border-right: 1px solid rgba(255,255,255,.2);
     position: sticky;
-    top: 0;
     z-index: 10;
   }
-  thead th:first-child { position: sticky; left: 0; z-index: 20; background: #162f5e; }
+  /* 총계 행: 최상단 고정 */
+  #tableTotalRow th { top: 0; z-index: 12; }
+  /* 컬럼 헤더 행: 총계 행 아래 고정 (JS로 top 계산) */
+  #tableHeader th { top: var(--col-header-top, 30px); z-index: 10; }
+  /* 첫 번째 열 좌측 고정 */
+  #tableTotalRow th:first-child { position: sticky; left: 0; z-index: 13; }
+  #tableHeader th:first-child   { position: sticky; left: 0; z-index: 11; background: #162f5e; }
   thead .th-target { background: #1e4a8a; font-size: 10px; min-width: 50px; }
   thead .th-total { background: #b45309; }
   tbody tr { border-bottom: 1px solid var(--border); transition: background .1s; }
@@ -137,18 +142,20 @@
   td.num-cell { color: var(--accent); font-weight: 600; }
   td.total-cell { color: #b45309; font-weight: 700; background: #fef3c7 !important; }
   td.zero { color: #cbd5e1; }
-  tfoot tr td {
+  #tableTotalRow th {
     background: #1e3a5f !important;
     color: #e0eaff;
     font-weight: 700;
     font-size: 12px;
     padding: 6px 6px;
-    border-top: 2px solid var(--kada-blue);
+    border-bottom: 2px solid #3b6cb7;
     text-align: center;
+    white-space: nowrap;
   }
-  tfoot tr td.foot-label { color: #93c5fd; font-size: 11px; }
-  tfoot tr td.foot-total { color: #fbbf24; }
-  tfoot tr td.foot-target { color: #86efac; }
+  #tableTotalRow th.foot-label { color: #93c5fd; font-size: 11px; font-weight: 400; }
+  #tableTotalRow th.foot-participant { color: #60a5fa; font-size: 13px; }
+  #tableTotalRow th.foot-target { color: #86efac; }
+  #tableTotalRow th.foot-total { color: #fbbf24; font-size: 13px; }
 
   /* ── Modal overlay ── */
   .modal-overlay {
@@ -413,8 +420,16 @@
   </div>
   <div style="width:1px;height:36px;background:var(--border)"></div>
   <div class="stat-item">
-    <span class="stat-label">총 학습자 수</span>
-    <span class="stat-value" id="statTotal">0</span>
+    <span class="stat-label">참여자 총계</span>
+    <span class="stat-value" style="color:#2563eb" id="statParticipant">0</span>
+  </div>
+  <div class="stat-item">
+    <span class="stat-label">강사수</span>
+    <span class="stat-value" style="color:#0891b2" id="statInstructor">0</span>
+  </div>
+  <div class="stat-item">
+    <span class="stat-label">대상별 합계</span>
+    <span class="stat-value" style="color:#7c3aed" id="statTargetTotal">0</span>
   </div>
   <div style="width:1px;height:36px;background:var(--border)"></div>
   <div class="stat-item">
@@ -437,10 +452,10 @@
 <div class="table-wrap">
   <table id="mainTable">
     <thead>
+      <tr id="tableTotalRow"></tr>
       <tr id="tableHeader"></tr>
     </thead>
     <tbody id="tableBody"></tbody>
-    <tfoot id="tableFoot"></tfoot>
   </table>
   <div class="empty-state" id="emptyState" style="display:none">
     <div class="icon">📋</div>
@@ -888,7 +903,29 @@ function renderTable() {
   }
   emptyState.style.display = 'none';
 
-  tbody.innerHTML = filtered.map(({ r, i }, rowNo) => {
+  // ── 총계 행 (데이터 위에 표시) ──
+  const rows = filtered.map(f => f.r);
+  const ftParticipant = rows.reduce((s, r) => s + (parseInt(r.참여자수) || parseInt(r.인원_계) || 0), 0);
+  const ftInstructor  = rows.filter(r => r.강사1 && String(r.강사1).trim()).length;
+  const ftTargets     = TARGET_KEYS.map(k => rows.reduce((s, r) => s + (parseInt(r[k]) || 0), 0));
+  const ftGrandTotal  = ftTargets.reduce((a, b) => a + b, 0);
+  const ftTargetThs   = ftTargets.map(v => `<th class="foot-target">${v || ''}</th>`).join('');
+  document.getElementById('tableTotalRow').innerHTML =
+    `<th class="foot-label">합계</th>
+     <th class="foot-label">${rows.length}건</th>
+     <th class="foot-label"></th>
+     <th class="foot-label"></th>
+     <th class="foot-label"></th>
+     <th class="foot-label"></th>
+     <th class="foot-label"></th>
+     <th class="foot-label">${ftInstructor}명</th>
+     <th class="foot-label"></th>
+     <th class="foot-participant">${ftParticipant || ''}</th>
+     ${ftTargetThs}
+     <th class="foot-total">${ftGrandTotal || ''}</th>
+     <th></th>`;
+
+  const dataRows = filtered.map(({ r, i }, rowNo) => {
     const total = getTotal(r);
     const tCells = TARGET_KEYS.map(k => {
       const v = parseInt(r[k]) || 0;
@@ -915,28 +952,16 @@ function renderTable() {
     </tr>`;
   }).join('');
 
-  // ── 총계 행 ──
-  const tfoot = document.getElementById('tableFoot');
-  const rows = filtered.map(f => f.r);
-  const sumParticipant = rows.reduce((s, r) => s + (parseInt(r.참여자수) || parseInt(r.인원_계) || 0), 0);
-  const sumInstructor  = rows.filter(r => r.강사1 && r.강사1.trim()).length;
-  const sumTargets     = TARGET_KEYS.map(k => rows.reduce((s, r) => s + (parseInt(r[k]) || 0), 0));
-  const sumGrandTotal  = sumTargets.reduce((a, b) => a + b, 0);
+  tbody.innerHTML = dataRows;
 
-  const targetTds = sumTargets.map(v =>
-    `<td class="foot-target">${v || ''}</td>`
-  ).join('');
-
-  tfoot.innerHTML = `<tr>
-    <td class="foot-label">합계</td>
-    <td class="foot-label" colspan="6">${rows.length}건</td>
-    <td class="foot-label">${sumInstructor}명</td>
-    <td class="foot-label"></td>
-    <td class="foot-total">${sumParticipant || ''}</td>
-    ${targetTds}
-    <td class="foot-total">${sumGrandTotal || ''}</td>
-    <td></td>
-  </tr>`;
+  // 총계 행 높이만큼 컬럼 헤더 top 조정
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    const totalRowEl = document.getElementById('tableTotalRow');
+    if (totalRowEl) {
+      const h = totalRowEl.getBoundingClientRect().height;
+      if (h > 0) document.documentElement.style.setProperty('--col-header-top', h + 'px');
+    }
+  }));
 
   // Filter status
   const activeFilters = getSelectedFilters();
@@ -950,13 +975,17 @@ function renderTable() {
 }
 
 function updateStats(recs) {
-  const total = recs.reduce((s, r) => s + getTotal(r), 0);
+  const sumParticipant = recs.reduce((s, r) => s + (parseInt(r.참여자수) || parseInt(r.인원_계) || 0), 0);
+  const sumInstructor  = recs.filter(r => r.강사1 && String(r.강사1).trim()).length;
+  const sumTargetTotal = recs.reduce((s, r) => s + getTotal(r), 0);
   document.getElementById('statCount').textContent = recs.length;
-  document.getElementById('statTotal').textContent = total.toLocaleString();
+  document.getElementById('statParticipant').textContent = sumParticipant.toLocaleString();
+  document.getElementById('statInstructor').textContent = sumInstructor;
+  document.getElementById('statTargetTotal').textContent = sumTargetTotal.toLocaleString();
   document.getElementById('statGifund').textContent = recs.filter(r => r.자원==='기금').length;
   document.getElementById('statJache').textContent = recs.filter(r => r.자원==='자체').length;
   document.getElementById('statEtc').textContent = recs.filter(r => r.자원==='기타').length;
-  document.getElementById('navStat').textContent = `총 ${records.length}건 / ${records.reduce((s,r)=>s+getTotal(r),0).toLocaleString()}명`;
+  document.getElementById('navStat').textContent = `총 ${records.length}건 / ${sumParticipant.toLocaleString()}명`;
 }
 
 // ================================================================
