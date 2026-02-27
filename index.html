@@ -1886,6 +1886,7 @@
     // MODAL MANAGEMENT
     // ================================================================
     function openAddModal() {
+      addLog('버튼클릭', '새 레코드 추가', '-');
       editingId = null;
       document.getElementById('modalTitle').textContent = '새 교육 레코드 추가';
       clearForm();
@@ -2056,7 +2057,9 @@
         // 데이터 변경 로그 남기기
         for (const key in r) {
           if (JSON.stringify(oldRecord[key]) !== JSON.stringify(r[key])) {
-            addLog(oldRecord.교육명, key, String(oldRecord[key]) + ' → ' + String(r[key]));
+            const before = oldRecord[key] == null ? '' : oldRecord[key];
+            const after = r[key] == null ? '' : r[key];
+            addLog(oldRecord.교육명, key, String(before) + ' → ' + String(after));
           }
         }
 
