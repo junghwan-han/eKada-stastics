@@ -108,7 +108,16 @@
     max-height: calc(100vh - 200px);
     position: relative;
   }
-  table { width: 100%; border-collapse: collapse; white-space: nowrap; }
+  table { border-collapse: collapse; white-space: nowrap; }
+  /* 컬럼 리사이즈 핸들 */
+  thead th { position: relative; }
+  .col-resizer {
+    position: absolute; right: 0; top: 0; bottom: 0;
+    width: 5px; cursor: col-resize;
+    background: transparent;
+    z-index: 5;
+  }
+  .col-resizer:hover, .col-resizer.dragging { background: rgba(255,255,255,0.4); }
   thead tr { background: var(--kada-blue); color: #fff; }
   thead th {
     padding: 8px 10px;
@@ -118,14 +127,15 @@
     border-right: 1px solid rgba(255,255,255,.2);
     position: sticky;
     z-index: 10;
+    background: var(--kada-blue); /* sticky 셀에 반드시 직접 배경 지정 */
   }
   /* 총계 행: 최상단 고정 */
-  #tableTotalRow th { top: 0; z-index: 12; }
-  /* 컬럼 헤더 행: 총계 행 아래 고정 (JS로 top 계산) */
-  #tableHeader th { top: var(--col-header-top, 30px); z-index: 10; }
+  #tableTotalRow th { top: 0; z-index: 12; background: #1e3a5f; }
+  /* 컬럼 헤더 행: 총계 행 아래 고정 (JS로 top 직접 설정) */
+  #tableHeader th { top: 30px; z-index: 10; background: var(--kada-blue); }
   /* 첫 번째 열 좌측 고정 */
-  #tableTotalRow th:first-child { position: sticky; left: 0; z-index: 13; }
-  #tableHeader th:first-child   { position: sticky; left: 0; z-index: 11; background: #162f5e; }
+  #tableTotalRow th:first-child { left: 0; z-index: 13; background: #162f5e; }
+  #tableHeader th:first-child   { left: 0; z-index: 11; background: #162f5e; }
   thead .th-target { background: #1e4a8a; font-size: 10px; min-width: 50px; }
   thead .th-total { background: #b45309; }
   tbody tr { border-bottom: 1px solid var(--border); transition: background .1s; }
@@ -195,6 +205,20 @@
     padding: 6px 12px; background: var(--kada-light);
     border-left: 3px solid var(--accent);
     border-radius: 4px; margin-bottom: 12px;
+  }
+  /* 잠금 섹션 스타일 */
+  .section-locked { position: relative; }
+  .section-locked::after {
+    content: '🔒 개발자 수정 버튼으로 잠금 해제';
+    position: absolute; inset: 0;
+    background: rgba(248,250,252,0.75);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; color: var(--muted); font-weight: 600;
+    border-radius: 6px; pointer-events: none;
+    border: 2px dashed #cbd5e1;
+  }
+  .section-locked input, .section-locked select, .section-locked textarea {
+    pointer-events: none;
   }
   .form-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
   .form-grid-2 { grid-template-columns: repeat(2, 1fr); }
@@ -344,6 +368,21 @@
   .loading-spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--border); border-top: 2px solid var(--accent); border-radius: 50%; animation: spin .6s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
 </style>
+<!-- Firebase SDK (compat) -->
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyBM0qMUnSO1WbhSRcsfl4vjWKoXN0a8HzU",
+    authDomain: "ekada-2026.firebaseapp.com",
+    projectId: "ekada-2026",
+    storageBucket: "ekada-2026.firebasestorage.app",
+    messagingSenderId: "1014383340723",
+    appId: "1:1014383340723:web:77b626f4913df72a4294c6"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+</script>
 </head>
 <body>
 
@@ -374,6 +413,7 @@
   <button class="btn btn-outline" onclick="openLogsModal()">📋 로그보기</button>
   <button class="btn btn-outline" onclick="openGroupedView()">👥 대상별 보기</button>
   <div class="sep"></div>
+  <button id="btnMigrate" class="btn btn-outline" onclick="migrateFromLocalStorage()" style="display:none;color:#16a34a;border-color:#16a34a;font-weight:700">📤 로컬 데이터 → Firestore 업로드</button>
   <button class="btn btn-outline" onclick="clearAllData()" style="color:#dc2626">🗑️ 전체 삭제</button>
 </div>
 
@@ -476,7 +516,7 @@
       <div id="tab-info" class="modal-tab-content active">
 
       <!-- 기본 정보 -->
-      <div class="form-section">
+      <div class="form-section" id="section-basic">
         <div class="form-section-title">📌 기본 정보</div>
         <div class="form-grid form-grid-2" style="margin-bottom:10px">
           <div class="form-group span-2">
@@ -523,13 +563,13 @@
           </div>
           <div class="form-group">
             <label>기관명</label>
-            <select id="f_org" style="flex:1">
-              <option value="">선택</option>
+            <input type="text" id="f_org" list="orgList" placeholder="기관명 입력 또는 선택">
+            <datalist id="orgList">
               <option>대한체육회</option><option>회원종목단체</option><option>대한장애인체육회</option>
               <option>가맹경기단체</option><option>시도체육회</option><option>시도장애인체육회</option>
               <option>프로스포츠단체</option><option>시도교육(지원)청</option><option>체육중고</option>
               <option>학교운동부</option><option>체육지도자 자격연수기관</option><option>기타</option>
-            </select>
+            </datalist>
           </div>
           <div class="form-group span-2" style="grid-column:span 1">
             <label>교육장소</label>
@@ -539,7 +579,7 @@
       </div>
 
       <!-- 강사 정보 -->
-      <div class="form-section">
+      <div class="form-section" id="section-instructor">
         <div class="form-section-title">👨‍🏫 강사 정보</div>
         <div class="form-grid" style="grid-template-columns: 80px repeat(9,1fr)">
           <div class="form-group">
@@ -664,6 +704,8 @@
 
     </div>
     <div class="modal-footer">
+      <button class="btn btn-outline" id="btnDevUnlock" onclick="devUnlock()" style="display:none;color:#7c3aed;border-color:#7c3aed">🔓 개발자 수정</button>
+      <div style="flex:1"></div>
       <button class="btn btn-outline" onclick="closeModal('editModal')">취소</button>
       <button class="btn btn-primary" onclick="saveRecord()">💾 저장</button>
     </div>
@@ -774,8 +816,26 @@ function setSortKey(key) {
     currentSort.key = key;
     currentSort.dir = 'desc';
   }
+  saveColWidths();
   buildHeader();
+  restoreColWidths();
   renderTable();
+}
+
+function saveColWidths() {
+  savedColWidths = Array.from(document.querySelectorAll('#tableHeader th')).map(th => th.style.width || '');
+}
+
+function restoreColWidths() {
+  if (!savedColWidths.length) return;
+  requestAnimationFrame(() => {
+    document.querySelectorAll('#tableHeader th').forEach((th, i) => {
+      if (savedColWidths[i]) {
+        th.style.width = savedColWidths[i];
+        th.style.minWidth = savedColWidths[i];
+      }
+    });
+  });
 }
 const MONTHS = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
 const REGIONS = ['서울','부산','인천','대구','대전','광주','울산','세종','경기','강원','충북','충남','전북','전남','경북','경남','제주'];
@@ -802,23 +862,48 @@ const TARGET_LABELS = [
 ];
 
 let records = [];
-let editingIndex = -1;
+let editingId = null; // 수정 중인 레코드의 Firestore document ID
 let logs = [];
+let savedColWidths = []; // 사용자가 조절한 컬럼 너비 저장
 
-// Load from localStorage
-function loadData() {
-  try {
-    const s = localStorage.getItem(STORAGE_KEY);
-    if (s) records = JSON.parse(s);
-    const l = localStorage.getItem(LOGS_KEY);
-    if (l) logs = JSON.parse(l);
-  } catch(e) {}
-}
-function saveData() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
-}
+// ── Firestore 연동 ──────────────────────────────────────────────
+const FS_COL = 'ekada2026';       // 교육 레코드 컬렉션 (문서 1개 = 레코드 1개)
+const FS_LOG = 'ekada2026_logs';  // 로그 전용 컬렉션
+
+// saveData는 더 이상 전체 배열을 저장하지 않음 (개별 저장 방식으로 변경)
+// 하위 호환성을 위해 남겨둠 (import 함수에서 배치 저장 후 불필요)
+function saveData() { /* no-op: 개별 Firestore 저장 방식 사용 */ }
+
 function saveLogs() {
-  localStorage.setItem(LOGS_KEY, JSON.stringify(logs));
+  db.collection(FS_LOG).doc('main').set({ logs: logs })
+    .catch(e => console.error('saveLogs 오류:', e));
+}
+
+// 여러 레코드 한번에 Firestore에 추가 (import 용)
+function saveBatchToFirestore(newRecords) {
+  const batch = db.batch();
+  newRecords.forEach(rec => {
+    const ref = db.collection(FS_COL).doc(); // 자동 ID
+    batch.set(ref, rec);
+  });
+  return batch.commit();
+}
+
+// 실시간 리스너: 컬렉션 전체 구독 → 누가 추가/수정/삭제해도 모두 자동 반영
+function initFirestore() {
+  // 로그 로드
+  db.collection(FS_LOG).doc('main').get().then(doc => {
+    if (doc.exists) logs = doc.data().logs || [];
+  });
+  // 교육 데이터: 컬렉션 단위 실시간 구독
+  // 레코드 1개 = Firestore 문서 1개 → 동시 작업 충돌 없음
+  db.collection(FS_COL).onSnapshot(snap => {
+    records = snap.docs.map(doc => ({ _id: doc.id, ...doc.data() }));
+    renderTable();
+  }, err => {
+    console.error('Firestore 오류:', err);
+    showToast('데이터 로드 실패: ' + err.message, 'error');
+  });
 }
 function addLog(field, change, value) {
   logs.push({
@@ -854,6 +939,57 @@ function buildHeader() {
   html += targetShort.map(c => `<th class="th-target">${c}</th>`).join('');
   html += '<th class="th-total">합계</th><th>작업</th>';
   tr.innerHTML = html;
+  // 각 th에 리사이즈 핸들 삽입
+  tr.querySelectorAll('th').forEach(th => {
+    const handle = document.createElement('div');
+    handle.className = 'col-resizer';
+    th.appendChild(handle);
+    initColResize(th, handle);
+  });
+}
+
+function initColResize(th, handle) {
+  let startX, startW, didDrag = false;
+
+  handle.addEventListener('mousedown', e => {
+    e.preventDefault();
+    e.stopPropagation();
+    didDrag = false;
+    startX = e.pageX;
+
+    // 드래그 시작 전 모든 컬럼 너비를 현재 픽셀값으로 고정 → 리플로우 방지
+    const allThs = document.querySelectorAll('#tableHeader th');
+    allThs.forEach(t => {
+      const w = t.getBoundingClientRect().width;
+      t.style.width = w + 'px';
+      t.style.minWidth = w + 'px';
+    });
+    startW = th.getBoundingClientRect().width;
+
+    handle.classList.add('dragging');
+
+    const onMove = ev => {
+      didDrag = true;
+      const w = Math.max(30, startW + ev.pageX - startX);
+      th.style.width = w + 'px';
+      th.style.minWidth = w + 'px';
+    };
+
+    const onUp = () => {
+      handle.classList.remove('dragging');
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+
+  // 드래그 후 click(정렬) 발동 차단
+  handle.addEventListener('click', e => {
+    e.stopPropagation();
+    e.preventDefault();
+  });
 }
 
 function getTotal(r) {
@@ -940,28 +1076,33 @@ function renderTable() {
       <td>${r.자원||''}</td>
       <td>${r.교육유형||''}</td>
       <td>${r.담당자||''}</td>
-      <td>${r.강사1||''}</td>
+      <td style="white-space:normal;min-width:80px">${[r.강사1,r.강사2,r.강사3,r.강사4,r.강사5,r.강사6,r.강사7,r.강사8,r.강사9].filter(Boolean).join(', ')}</td>
       <td style="max-width:100px;overflow:hidden;text-overflow:ellipsis">${r.기관명||''}</td>
       <td style="text-align:center;font-weight:600">${r.참여자수 != null ? r.참여자수 : (r.인원_계 || '')}</td>
       ${tCells}
       <td class="total-cell">${total||''}</td>
       <td>
-        <button class="btn btn-outline btn-sm" onclick="openEditModal(${i})">✏️</button>
-        <button class="btn btn-danger btn-sm" onclick="deleteRecord(${i})">🗑️</button>
+        <button class="btn btn-outline btn-sm" onclick="openEditModal('${r._id}')">✏️</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteRecord('${r._id}')">🗑️</button>
       </td>
     </tr>`;
   }).join('');
 
   tbody.innerHTML = dataRows;
 
-  // 총계 행 높이만큼 컬럼 헤더 top 조정
-  requestAnimationFrame(() => requestAnimationFrame(() => {
-    const totalRowEl = document.getElementById('tableTotalRow');
-    if (totalRowEl) {
-      const h = totalRowEl.getBoundingClientRect().height;
-      if (h > 0) document.documentElement.style.setProperty('--col-header-top', h + 'px');
+  // 총계 행 높이 측정 후 컬럼 헤더 top 직접 설정
+  function fixHeaderTop() {
+    const totalRow = document.getElementById('tableTotalRow');
+    const headerRow = document.getElementById('tableHeader');
+    if (!totalRow || !headerRow) return;
+    const h = totalRow.offsetHeight;
+    if (h > 0) {
+      Array.from(headerRow.querySelectorAll('th')).forEach(th => {
+        th.style.top = h + 'px';
+      });
     }
-  }));
+  }
+  requestAnimationFrame(() => requestAnimationFrame(fixHeaderTop));
 
   // Filter status
   const activeFilters = getSelectedFilters();
@@ -992,15 +1133,18 @@ function updateStats(recs) {
 // MODAL MANAGEMENT
 // ================================================================
 function openAddModal() {
-  editingIndex = -1;
+  editingId = null;
   document.getElementById('modalTitle').textContent = '새 교육 레코드 추가';
   clearForm();
+  // 신규 추가: 잠금 없음, 개발자 버튼 숨김
+  lockBasicSections(false);
+  document.getElementById('btnDevUnlock').style.display = 'none';
   document.getElementById('editModal').classList.add('active');
 }
 
-function openEditModal(idx) {
-  editingIndex = idx;
-  const r = records[idx];
+function openEditModal(_id) {
+  editingId = _id;
+  const r = records.find(rec => rec._id === _id);
   document.getElementById('modalTitle').textContent = '교육 레코드 수정';
   clearForm();
   // Fill basic
@@ -1026,7 +1170,29 @@ function openEditModal(idx) {
   document.getElementById('f_memo_target').value = r.메모_현장인원 || '';
   document.getElementById('f_note').value = r.비고 || '';
   updateTotal();
+  // 수정 모드: 기본정보/강사정보 잠금, 개발자 버튼 표시
+  lockBasicSections(true);
+  document.getElementById('btnDevUnlock').style.display = 'inline-flex';
   document.getElementById('editModal').classList.add('active');
+}
+
+function lockBasicSections(lock) {
+  ['section-basic', 'section-instructor'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('section-locked', lock);
+  });
+}
+
+function devUnlock() {
+  const pw = prompt('개발자 수정 비밀번호를 입력하세요:');
+  if (pw === null) return;
+  if (pw !== '0318@') { showToast('비밀번호가 틀렸습니다', 'error'); return; }
+  lockBasicSections(false);
+  document.getElementById('btnDevUnlock').textContent = '🔓 잠금 해제됨';
+  document.getElementById('btnDevUnlock').style.color = '#16a34a';
+  document.getElementById('btnDevUnlock').style.borderColor = '#16a34a';
+  document.getElementById('btnDevUnlock').disabled = true;
+  showToast('기본정보 및 강사정보 수정 가능', 'success');
 }
 
 function closeModal(id) {
@@ -1046,8 +1212,8 @@ function switchModalTab(tabName) {
     if (tabBtn) tabBtn.classList.add('active');
 
     // Load participants if switching to that tab
-    if (tabName === 'participants' && editingIndex >= 0) {
-      loadParticipants(records[editingIndex]);
+    if (tabName === 'participants' && editingId) {
+      loadParticipants(records.find(r => r._id === editingId));
     }
   }
 }
@@ -1119,42 +1285,53 @@ function saveRecord() {
     r[k] = v || null;
   });
 
-  if (editingIndex >= 0) {
-    const oldRecord = records[editingIndex];
-    records[editingIndex] = r;
-    // Log changes
+  if (editingId) {
+    // 수정: 기존 레코드의 Firestore 문서만 업데이트
+    const oldRecord = records.find(rec => rec._id === editingId);
+    const updated = { ...oldRecord, ...r }; // 폼에 없는 필드(참여자수 등) 보존
     for (const key in r) {
       if (JSON.stringify(oldRecord[key]) !== JSON.stringify(r[key])) {
-        addLog('Record#' + editingIndex, key, oldRecord[key] + ' → ' + r[key]);
+        addLog(oldRecord.교육명, key, String(oldRecord[key]) + ' → ' + String(r[key]));
       }
     }
-    showToast('수정 완료', 'success');
+    db.collection(FS_COL).doc(editingId).set(updated)
+      .then(() => showToast('수정 완료', 'success'))
+      .catch(e => showToast('저장 실패: ' + e.message, 'error'));
   } else {
-    records.push(r);
-    addLog('New', '교육명', name);
-    showToast('추가 완료', 'success');
+    // 신규: 새 Firestore 문서 추가 (자동 ID)
+    addLog('신규추가', '교육명', name);
+    db.collection(FS_COL).add(r)
+      .then(() => showToast('추가 완료', 'success'))
+      .catch(e => showToast('저장 실패: ' + e.message, 'error'));
   }
-  saveData();
-  renderTable();
+  // renderTable은 onSnapshot이 자동 처리
   closeModal('editModal');
 }
 
-function deleteRecord(idx) {
+function deleteRecord(_id) {
+  const rec = records.find(r => r._id === _id);
   if (!confirm('이 레코드를 삭제하시겠습니까?')) return;
-  const delRecord = records[idx];
-  addLog('Record#' + idx, '삭제', delRecord.교육명);
-  records.splice(idx, 1);
-  saveData();
-  renderTable();
-  showToast('삭제됨');
+  addLog(rec ? rec.교육명 : '', '삭제', '');
+  db.collection(FS_COL).doc(_id).delete()
+    .then(() => showToast('삭제됨'))
+    .catch(e => showToast('삭제 실패: ' + e.message, 'error'));
+  // renderTable은 onSnapshot이 자동 처리
 }
 
 function clearAllData() {
+  const pw = prompt('전체 삭제 비밀번호를 입력하세요:');
+  if (pw === null) return;
+  if (pw !== '0318@') { showToast('비밀번호가 틀렸습니다', 'error'); return; }
   if (!confirm(`전체 ${records.length}건 데이터를 모두 삭제하시겠습니까?`)) return;
-  records = [];
-  saveData();
-  renderTable();
-  showToast('전체 삭제됨');
+  db.collection(FS_COL).get().then(snap => {
+    const batch = db.batch();
+    snap.docs.forEach(doc => batch.delete(doc.ref));
+    return batch.commit();
+  }).then(() => {
+    logs = [];
+    saveLogs();
+    showToast('전체 삭제됨');
+  }).catch(e => showToast('삭제 실패: ' + e.message, 'error'));
 }
 
 // ================================================================
@@ -1393,16 +1570,18 @@ function importJsonFile(input) {
       const data = JSON.parse(e.target.result);
       const arr = extractArrayFromJson(data);
       let cnt = 0;
+      const toAdd = [];
       arr.forEach(item => {
         if (item.교육명 || item.name) {
           const r = { 교육명: item.교육명 || item.name || '', ...item };
-          records.push(r);
+          delete r._id; // 기존 _id 제거 (Firestore가 새로 부여)
+          toAdd.push(r);
           cnt++;
         }
       });
-      saveData();
-      renderTable();
-      showToast(`${cnt}건 가져오기 완료`, 'success');
+      saveBatchToFirestore(toAdd)
+        .then(() => showToast(`${cnt}건 가져오기 완료`, 'success'))
+        .catch(e => showToast('저장 실패: ' + e.message, 'error'));
     } catch(err) {
       showToast('JSON 파싱 오류: ' + err.message, 'error');
     }
@@ -1418,17 +1597,21 @@ function importFromJSON() {
     const data = JSON.parse(text);
     const arr = extractArrayFromJson(data);
     let cnt = 0;
+    const toAdd = [];
     arr.forEach(item => {
       if (item.교육명 || item.name) {
         const r = { 교육명: item.교육명 || item.name || '', ...item };
-        records.push(r);
+        delete r._id;
+        toAdd.push(r);
         cnt++;
       }
     });
-    saveData();
-    renderTable();
-    closeModal('bkmModal');
-    showToast(`${cnt}건 가져오기 완료`, 'success');
+    saveBatchToFirestore(toAdd)
+      .then(() => {
+        closeModal('bkmModal');
+        showToast(`${cnt}건 가져오기 완료`, 'success');
+      })
+      .catch(e => showToast('저장 실패: ' + e.message, 'error'));
   } catch(e) {
     showToast('JSON 파싱 오류: ' + e.message, 'error');
   }
@@ -1500,8 +1683,16 @@ function initFilters() {
 // ================================================================
 function openLogsModal() {
   const container = document.getElementById('logsContainer');
-  // 수정한 건만 표시 (신규 추가 'New' 로그 제외)
-  const modLogs = logs.filter(log => log.field !== 'New');
+  // 대상별 인원수 수정 내역만 표시
+  const isFalsy = v => v === 'undefined' || v === 'null' || v === '0' || v === '';
+  const modLogs = logs.filter(log => {
+    if (!TARGET_KEYS.includes(log.change)) return false;
+    // 양쪽 다 빈값(null/undefined)이면 실제 변경 없음 → 숨김
+    const parts = String(log.value).split(' → ');
+    const before = String(parts[0] ?? '').trim();
+    const after  = String(parts[1] ?? '').trim();
+    return !(isFalsy(before) && isFalsy(after));
+  });
   if (modLogs.length === 0) {
     container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted)">수정 로그가 없습니다.</div>';
   } else {
@@ -1737,13 +1928,55 @@ function openParticipantsView(idx) {
 }
 
 // ================================================================
+// 로컬 데이터 → Firestore 마이그레이션
+// ================================================================
+function migrateFromLocalStorage() {
+  const OLD_KEY = 'kada_edu_2026';
+  const OLD_LOG_KEY = 'kada_edu_logs_2026';
+  const localData = localStorage.getItem(OLD_KEY);
+  if (!localData) {
+    showToast('로컬에 저장된 데이터가 없습니다', 'error');
+    return;
+  }
+  const localRecords = JSON.parse(localData);
+  const localLogs = JSON.parse(localStorage.getItem(OLD_LOG_KEY) || '[]');
+
+  if (!confirm(`로컬 데이터 ${localRecords.length}건을 Firestore로 올리시겠습니까?\n(기존 Firestore 데이터에 추가됩니다)`)) return;
+
+  // 배치로 레코드 1개 = 문서 1개씩 저장
+  const batch = db.batch();
+  localRecords.forEach(rec => {
+    const ref = db.collection(FS_COL).doc(); // 새 자동 ID
+    const clean = { ...rec };
+    delete clean._id; // 기존 _id 제거
+    batch.set(ref, clean);
+  });
+  batch.commit()
+    .then(() => db.collection(FS_LOG).doc('main').set({ logs: localLogs }))
+    .then(() => {
+      showToast(`✅ ${localRecords.length}건 Firestore 업로드 완료!`, 'success');
+      document.getElementById('btnMigrate').style.display = 'none';
+    })
+    .catch(e => showToast('업로드 실패: ' + e.message, 'error'));
+}
+
+function checkMigrateButton() {
+  const OLD_KEY = 'kada_edu_2026';
+  if (localStorage.getItem(OLD_KEY)) {
+    const btn = document.getElementById('btnMigrate');
+    if (btn) btn.style.display = 'inline-flex';
+  }
+}
+
+// ================================================================
 // INIT
 // ================================================================
 document.addEventListener('DOMContentLoaded', () => {
-  loadData();
   initFilters();
   buildHeader();
-  renderTable();
+  renderTable(); // 초기 빈 테이블 먼저 표시
+  initFirestore(); // Firestore 실시간 연결 (데이터 오면 자동 renderTable)
+  checkMigrateButton(); // 로컬 데이터 있으면 마이그레이션 버튼 표시
 });
 
 // (참여자명단 탭 제거로 modal-tab 이벤트 바인딩 불필요)
