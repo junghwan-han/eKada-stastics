@@ -1,0 +1,29 @@
+name: HTML Validation & Deployment Check
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  check-quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Check for existence of index.html
+        run: |
+          if [ ! -f index.html ]; then
+            echo "Error: index.html not found!"
+            exit 1
+          fi
+
+      - name: Simple HTML Structure Test
+        run: |
+          grep -q "<html>" index.html
+          grep -q "</html>" index.html
+          echo "HTML structure looks good!"
+
+      - name: Notify Quality Check Success
+        run: echo "CI Quality Checks passed! Ready for deployment."
