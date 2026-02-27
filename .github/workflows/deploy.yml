@@ -21,8 +21,8 @@ jobs:
 
       - name: Simple HTML Structure Test
         run: |
-          grep -q "<html>" index.html
-          grep -q "</html>" index.html
+          grep -i -q "<html" index.html
+          grep -i -q "</html>" index.html
           echo "HTML structure looks good!"
 
       - name: Notify Quality Check Success
