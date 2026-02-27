@@ -6,6 +6,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>교육실적 관리도구 2026 — KADA 도핑방지교육</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <script
+    src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
   <style>
     :root {
       --kada-blue: #1a4b8c;
@@ -159,25 +162,154 @@
       gap: 6px;
     }
 
-    .filter-row {
+    /* ── Filter bar 드롭다운 방식 ── */
+    .filter-bar {
+      background: #fff;
+      border-bottom: 1px solid var(--border);
+      padding: 8px 16px;
+    }
+
+    .filter-toolbar {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 8px;
       flex-wrap: wrap;
     }
 
-    .filter-bar input[type="text"] {
+    .filter-search-wrap {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 7px;
       padding: 5px 10px;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      font-size: 12px;
-      background: #fff;
-      width: 200px;
+      width: 220px;
+      transition: border-color .15s, box-shadow .15s;
     }
 
-    .filter-bar input[type="text"]:focus {
-      outline: none;
+    .filter-search-wrap:focus-within {
       border-color: var(--accent);
+      background: #fff;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, .08);
+    }
+
+    .filter-search-wrap input[type="text"] {
+      border: none;
+      outline: none;
+      font-size: 12.5px;
+      background: transparent;
+      width: 100%;
+      color: #1e293b;
+    }
+
+    .filter-search-wrap input::placeholder {
+      color: #94a3b8;
+    }
+
+    .filter-sep {
+      width: 1px;
+      height: 22px;
+      background: #e2e8f0;
+      flex-shrink: 0;
+    }
+
+    .filter-dropdown-group {
+      display: flex;
+      gap: 5px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    /* 드롭다운 컨테이너 */
+    .fdd {
+      position: relative;
+    }
+
+    .fdd-btn {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 10px;
+      border-radius: 7px;
+      border: 1px solid #e2e8f0;
+      background: #f8fafc;
+      font-size: 12px;
+      font-weight: 500;
+      color: #475569;
+      cursor: pointer;
+      user-select: none;
+      transition: all .12s;
+      white-space: nowrap;
+    }
+
+    .fdd-btn:hover {
+      border-color: #93c5fd;
+      background: #eff6ff;
+      color: var(--accent);
+    }
+
+    .fdd.open .fdd-btn {
+      border-color: var(--accent);
+      background: #eff6ff;
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .fdd-badge {
+      display: none;
+      background: var(--accent);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      border-radius: 9px;
+      padding: 1px 6px;
+      line-height: 1.4;
+    }
+
+    .fdd-badge.active {
+      display: inline-block;
+    }
+
+    /* 드롭다운 패널 */
+    .fdd-panel {
+      display: none;
+      position: absolute;
+      top: calc(100% + 6px);
+      left: 0;
+      z-index: 200;
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 12px 14px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, .1);
+      min-width: 220px;
+      max-width: 360px;
+    }
+
+    .fdd-panel-wide {
+      max-width: 480px;
+    }
+
+    .fdd.open .fdd-panel {
+      display: block;
+    }
+
+    .filter-reset-btn {
+      font-size: 11px;
+      padding: 5px 11px;
+      border-radius: 7px;
+      border: 1px solid #fca5a5;
+      background: #fff5f5;
+      color: #ef4444;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all .12s;
+      white-space: nowrap;
+    }
+
+    .filter-reset-btn:hover {
+      background: #fee2e2;
     }
 
     /* ── Stats bar ── */
@@ -259,25 +391,25 @@
       /* sticky 셀에 반드시 직접 배경 지정 */
     }
 
-    /* 총계 행: 최상단 고정 */
+    /* 총계 행: 최상단 고정 — 따뜻한 amber/teal 계열로 헤더와 명확히 구분 */
     #tableTotalRow th {
       top: 0;
       z-index: 12;
-      background: #1e3a5f;
+      background: #0f4c35;
     }
 
-    /* 컬럼 헤더 행: 총계 행 아래 고정 (JS로 top 직접 설정) */
+    /* 컬럼 헤더 행: 총계 행 아래 고정 */
     #tableHeader th {
       top: 30px;
       z-index: 10;
-      background: var(--kada-blue);
+      background: #1e3a5f;
     }
 
     /* 첫 번째 열 좌측 고정 */
     #tableTotalRow th:first-child {
       left: 0;
       z-index: 13;
-      background: #162f5e;
+      background: var(--success) !important;
     }
 
     #tableHeader th:first-child {
@@ -293,7 +425,9 @@
     }
 
     thead .th-total {
-      background: #b45309;
+      background: var(--success) !important;
+      color: #fff;
+      font-weight: 700;
     }
 
     tbody tr {
@@ -336,9 +470,9 @@
     }
 
     td.total-cell {
-      color: #b45309;
+      color: #fff;
       font-weight: 700;
-      background: #fef3c7 !important;
+      background: var(--success) !important;
     }
 
     td.zero {
@@ -346,33 +480,35 @@
     }
 
     #tableTotalRow th {
-      background: #1e3a5f !important;
-      color: #e0eaff;
+      background: var(--success) !important;
+      color: #fff;
       font-weight: 700;
       font-size: 12px;
       padding: 6px 6px;
-      border-bottom: 2px solid #3b6cb7;
+      border-bottom: 2px solid #065f46;
       text-align: center;
       white-space: nowrap;
     }
 
-    #tableTotalRow th.foot-label {
-      color: #93c5fd;
-      font-size: 11px;
-      font-weight: 400;
+    #tableTotalRow th:first-child {
+      color: #fff !important;
     }
 
     #tableTotalRow th.foot-participant {
-      color: #60a5fa;
+      color: #fff;
+      font-weight: 700;
       font-size: 13px;
     }
 
     #tableTotalRow th.foot-target {
-      color: #86efac;
+      color: #fff;
+      font-weight: 700;
     }
 
     #tableTotalRow th.foot-total {
-      color: #fbbf24;
+      background: var(--success) !important;
+      color: #fff;
+      font-weight: 700;
       font-size: 13px;
     }
 
@@ -595,8 +731,8 @@
 
     /* Total auto-display */
     .total-display {
-      background: #fef3c7;
-      border: 1px solid #fcd34d;
+      background: var(--success) !important;
+      border: 1px solid var(--success);
       border-radius: 6px;
       padding: 10px 14px;
       display: flex;
@@ -608,13 +744,13 @@
     .total-display label {
       font-size: 12px;
       font-weight: 700;
-      color: #92400e;
+      color: #fff;
     }
 
     .total-display .total-num {
       font-size: 22px;
       font-weight: 700;
-      color: #b45309;
+      color: #fff;
     }
 
     /* Import modal */
@@ -721,34 +857,10 @@
     }
 
     /* Checkbox filter ── chip 스타일 */
-    .filter-group {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .filter-divider {
-      width: 1px;
-      height: 20px;
-      background: #bfdbfe;
-      flex-shrink: 0;
-    }
-
-    .filter-group .filter-label {
-      font-size: 10px;
-      font-weight: 700;
-      color: var(--kada-blue);
-      background: #dbeafe;
-      border-radius: 4px;
-      padding: 3px 7px;
-      white-space: nowrap;
-      flex-shrink: 0;
-    }
-
     .filter-checkboxes {
       display: flex;
       flex-wrap: wrap;
-      gap: 4px;
+      gap: 5px;
       align-items: center;
     }
 
@@ -766,21 +878,22 @@
 
     .filter-check label {
       display: inline-block;
-      font-size: 11px;
+      font-size: 11.5px;
       font-weight: 500;
-      padding: 3px 9px;
-      border-radius: 20px;
-      border: 1px solid #bfdbfe;
-      background: #fff;
-      color: var(--muted);
+      padding: 4px 10px;
+      border-radius: 6px;
+      border: 1px solid #e2e8f0;
+      background: #f8fafc;
+      color: #475569;
       cursor: pointer;
       user-select: none;
-      transition: all .15s;
+      transition: all .1s;
       line-height: 1.4;
+      white-space: nowrap;
     }
 
     .filter-check label:hover {
-      border-color: var(--accent);
+      border-color: #93c5fd;
       color: var(--accent);
       background: #eff6ff;
     }
@@ -1002,6 +1115,153 @@
       overflow: hidden;
       background: #fdfdfd;
     }
+
+    /* ── Infographic Modal ── */
+    .infographic-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      padding: 4px;
+    }
+
+    .infographic-card {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, .04);
+    }
+
+    .infographic-card.full-width {
+      grid-column: 1 / -1;
+    }
+
+    .infographic-card h3 {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text);
+      margin: 0 0 14px 0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .chart-wrap {
+      position: relative;
+      width: 100%;
+    }
+
+    .chart-wrap canvas {
+      width: 100% !important;
+    }
+
+    /* Korea map SVG */
+    .korea-map-wrap {
+      position: relative;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .korea-map-wrap svg {
+      max-height: 340px;
+      width: auto;
+    }
+
+    .map-region-label {
+      font-size: 9px;
+      font-weight: 700;
+      fill: #1e293b;
+      pointer-events: none;
+    }
+
+    .map-region-count {
+      font-size: 8px;
+      font-weight: 600;
+      fill: var(--accent);
+      pointer-events: none;
+    }
+
+    .map-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 10px;
+      justify-content: center;
+    }
+
+    .map-legend-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      color: var(--text);
+    }
+
+    .map-legend-color {
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+    }
+
+    /* 대상 선택 칩 */
+    .target-chip-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin-bottom: 12px;
+    }
+
+    .target-chip {
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      border: 1px solid #e2e8f0;
+      background: #f8fafc;
+      color: #475569;
+      cursor: pointer;
+      user-select: none;
+      transition: all .15s;
+    }
+
+    .target-chip:hover {
+      border-color: #93c5fd;
+      background: #eff6ff;
+    }
+
+    .target-chip.active {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+      font-weight: 600;
+    }
+
+    .target-chip-actions {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+
+    .target-chip-actions button {
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      border: 1px solid #d1d5db;
+      background: #fff;
+      color: var(--muted);
+      cursor: pointer;
+    }
+
+    .target-chip-actions button:hover {
+      background: var(--kada-light);
+      color: var(--accent);
+    }
+
+    @media (max-width: 800px) {
+      .infographic-grid {
+        grid-template-columns: 1fr;
+      }
+    }
   </style>
   <!-- Firebase SDK (compat) -->
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
@@ -1037,14 +1297,11 @@
   <!-- Toolbar -->
   <div class="toolbar">
     <button class="btn btn-primary" onclick="checkAdminAction(() => openAddModal())">➕ 새 레코드 추가</button>
-    <div class="sep"></div>
-    <button class="btn btn-outline" onclick="checkAdminAction(() => document.getElementById('importFile').click())">📂
-      Excel 가져오기</button>
     <input type="file" id="importFile" accept=".xlsx,.xls" style="display:none" onchange="importExcel(this)">
-    <button class="btn btn-outline"
-      onclick="checkAdminAction(() => document.getElementById('importJsonFile').click())">📥 JSON 가져오기</button>
     <input type="file" id="importJsonFile" accept=".json" style="display:none" onchange="importJsonFile(this)">
     <button class="btn btn-success" onclick="exportExcel()">⬇️ Excel 내보내기</button>
+    <button class="btn btn-outline" onclick="openInfographicModal()" style="color:#7c3aed;border-color:#7c3aed">📊
+      인포그래픽</button>
     <div class="sep"></div>
     <button class="btn btn-outline" onclick="checkAdminAction(() => openBackupModal())">💾 백업/복구</button>
     <button class="btn btn-outline" onclick="checkAdminAction(() => openLogsModal())">📋 로그보기</button>
@@ -1054,36 +1311,93 @@
 
   <!-- Filter bar -->
   <div class="filter-bar">
-    <!-- 1행: 검색 + 유형 + 자원 -->
-    <div class="filter-row">
-      <div style="display:flex;align-items:center;gap:6px">
-        <span style="font-size:11px;font-weight:700;color:var(--muted)">🔍</span>
-        <input type="text" id="searchInput" placeholder="교육명 검색..." oninput="renderTable()">
+    <div class="filter-toolbar">
+      <!-- 검색 -->
+      <div class="filter-search-wrap">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2.5"
+          stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0">
+          <circle cx="11" cy="11" r="8" />
+          <path d="m21 21-4.35-4.35" />
+        </svg>
+        <input type="text" id="searchInput" placeholder="검색..."
+          oninput="renderTable(); updateFilterBadges(getSelectedFilters())">
       </div>
-      <div class="filter-divider"></div>
-      <div class="filter-group">
-        <span class="filter-label">유형</span>
-        <div class="filter-checkboxes" id="filterTypeGroup"></div>
+
+      <div class="filter-sep"></div>
+
+      <!-- 드롭다운 필터 버튼들 -->
+      <div class="filter-dropdown-group">
+
+        <div class="fdd" id="fdd_type">
+          <button class="fdd-btn" onclick="toggleFdd('fdd_type')">
+            유형 <span class="fdd-badge" id="badge_type"></span>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </button>
+          <div class="fdd-panel">
+            <div class="filter-checkboxes" id="filterTypeGroup"></div>
+          </div>
+        </div>
+
+        <div class="fdd" id="fdd_jawon">
+          <button class="fdd-btn" onclick="toggleFdd('fdd_jawon')">
+            자원 <span class="fdd-badge" id="badge_jawon"></span>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </button>
+          <div class="fdd-panel">
+            <div class="filter-checkboxes" id="filterJawonGroup"></div>
+          </div>
+        </div>
+
+        <div class="fdd" id="fdd_month">
+          <button class="fdd-btn" onclick="toggleFdd('fdd_month')">
+            월 <span class="fdd-badge" id="badge_month"></span>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </button>
+          <div class="fdd-panel">
+            <div class="filter-checkboxes" id="filterMonthGroup"></div>
+          </div>
+        </div>
+
+        <div class="fdd" id="fdd_region">
+          <button class="fdd-btn" onclick="toggleFdd('fdd_region')">
+            권역 <span class="fdd-badge" id="badge_region"></span>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </button>
+          <div class="fdd-panel">
+            <div class="filter-checkboxes" id="filterRegionGroup"></div>
+          </div>
+        </div>
+
+        <div class="fdd" id="fdd_target">
+          <button class="fdd-btn" onclick="toggleFdd('fdd_target')">
+            대상 <span class="fdd-badge" id="badge_target"></span>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </button>
+          <div class="fdd-panel fdd-panel-wide">
+            <div class="filter-checkboxes" id="filterTargetGroup"></div>
+          </div>
+        </div>
+
       </div>
-      <div class="filter-divider"></div>
-      <div class="filter-group">
-        <span class="filter-label">자원</span>
-        <div class="filter-checkboxes" id="filterJawonGroup"></div>
-      </div>
-    </div>
-    <!-- 2행: 월 -->
-    <div class="filter-row">
-      <div class="filter-group">
-        <span class="filter-label">월</span>
-        <div class="filter-checkboxes" id="filterMonthGroup"></div>
-      </div>
-    </div>
-    <!-- 3행: 권역 -->
-    <div class="filter-row">
-      <div class="filter-group">
-        <span class="filter-label">권역</span>
-        <div class="filter-checkboxes" id="filterRegionGroup"></div>
-      </div>
+
+      <!-- 초기화 -->
+      <button class="filter-reset-btn" onclick="resetAllFilters()" id="filterResetBtn" style="display:none">✕
+        초기화</button>
     </div>
   </div>
 
@@ -1120,7 +1434,6 @@
       <span class="stat-value" style="color:#d97706" id="statEtc">0</span>
     </div>
     <div style="flex:1"></div>
-    <span style="font-size:11px;color:var(--muted)" id="filterStatus">필터: 없음</span>
   </div>
 
   <!-- Table -->
@@ -1199,6 +1512,7 @@
                   <option>온라인 실시간</option>
                   <option>체험형</option>
                   <option>아웃리치</option>
+                  <option>FPG</option>
                 </select>
               </div>
               <div class="form-group">
@@ -1462,9 +1776,16 @@
       <div class="modal-footer">
         <button class="btn btn-outline" id="btnDevUnlock" onclick="devUnlock()"
           style="display:none;color:#7c3aed;border-color:#7c3aed">🔓 개발자 수정</button>
+        <!-- 신규 추가 시에만 표시되는 가져오기 버튼 -->
+        <div id="importBtnsInModal" style="display:none; display:flex; gap:6px;">
+          <button class="btn btn-outline" style="font-size:12px;"
+            onclick="document.getElementById('importFile').click()">📂 Excel 가져오기</button>
+          <button class="btn btn-outline" style="font-size:12px;"
+            onclick="document.getElementById('importJsonFile').click()">📥 JSON 가져오기</button>
+        </div>
         <div style="flex:1"></div>
         <button class="btn btn-outline" onclick="closeModal('editModal')">취소</button>
-        <button class="btn btn-primary" onclick="saveRecord()">💾 저장</button>
+        <button class="btn btn-primary" id="btnSaveRecord" onclick="saveRecord()">💾 저장</button>
       </div>
     </div>
   </div>
@@ -1472,18 +1793,39 @@
 
   <!-- ===== LOGS MODAL ===== -->
   <div class="modal-overlay" id="logsModal">
-    <div class="modal-box" style="max-width:1000px">
+    <div class="modal-box" style="max-width:1100px">
       <div class="modal-header">
         <h2>📋 수정 로그 히스토리</h2>
         <button class="modal-close" onclick="closeModal('logsModal')">✕</button>
       </div>
+      <!-- 로그 검색 & 필터 바 -->
+      <div
+        style="padding:12px 16px; border-bottom:1px solid #e5e7eb; background:#f9fafb; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+        <input type="text" id="logSearchInput" placeholder="🔍 로그 검색 (교육명, 항목, 내용...)" oninput="renderLogs()"
+          style="flex:1; min-width:200px; padding:6px 10px; border:1px solid #d1d5db; border-radius:6px; font-size:13px;">
+        <select id="logTypeFilter" onchange="renderLogs()"
+          style="padding:6px 10px; border:1px solid #d1d5db; border-radius:6px; font-size:13px; background:white;">
+          <option value="">전체 유형</option>
+          <option value="수정">✏️ 수정</option>
+          <option value="신규추가">➕ 신규추가</option>
+          <option value="삭제">🗑️ 삭제</option>
+          <option value="검색">🔍 검색</option>
+          <option value="보안">🔐 보안</option>
+          <option value="백업">💾 백업</option>
+          <option value="복구">🔄 복구</option>
+          <option value="버튼클릭">👆 기타</option>
+        </select>
+        <span id="logCount" style="font-size:12px; color:var(--muted); white-space:nowrap;"></span>
+        <button onclick="renderLogs()" class="btn btn-outline" style="padding:5px 12px; font-size:12px;">새로고침</button>
+      </div>
       <div class="modal-body" style="padding:0">
-        <div id="logsContainer" style="max-height:600px;overflow-y:auto">
+        <div id="logsContainer" style="max-height:560px;overflow-y:auto">
           <div style="padding:40px;text-align:center;color:var(--muted)">로그 불러오는 중...</div>
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-outline" onclick="clearLogsData()">로그 초기화</button>
+        <button class="btn btn-outline" onclick="checkAdminAction(() => clearLogsData())" style="color:#dc2626">🗑️ 로그
+          초기화</button>
         <button class="btn btn-outline" onclick="closeModal('logsModal')">닫기</button>
       </div>
     </div>
@@ -1528,6 +1870,65 @@
   </div>
 
 
+  <!-- ===== INFOGRAPHIC MODAL ===== -->
+  <div class="modal-overlay" id="infographicModal">
+    <div class="modal-box" style="max-width:1200px">
+      <div class="modal-header" style="background:linear-gradient(135deg,#4f46e5,#7c3aed)">
+        <h2>📊 교육 실적 인포그래픽</h2>
+        <button class="modal-close" onclick="closeModal('infographicModal')">✕</button>
+      </div>
+      <div class="modal-body" style="background:#f8fafc">
+        <div class="infographic-grid">
+
+          <!-- 1. 월별 교육 실적 -->
+          <div class="infographic-card">
+            <h3>📅 월별 교육 실적</h3>
+            <div class="chart-wrap"><canvas id="chartMonthly"></canvas></div>
+          </div>
+
+          <!-- 2. 권역별 교육 실적 (한국 지도) -->
+          <div class="infographic-card">
+            <h3>🗺️ 권역별 교육 실적</h3>
+            <div id="koreaMapContainer"></div>
+          </div>
+
+          <!-- 3. 유형별 교육 실적 (도넛) -->
+          <div class="infographic-card">
+            <h3>🎯 유형별 교육 실적</h3>
+            <div class="chart-wrap" style="max-width:320px;margin:0 auto"><canvas id="chartType"></canvas></div>
+          </div>
+
+          <!-- 4. 강사별 교육 실적 -->
+          <div class="infographic-card">
+            <h3>👨‍🏫 강사별 교육 실적</h3>
+            <div class="chart-wrap"><canvas id="chartInstructor"></canvas></div>
+          </div>
+
+          <!-- 5. 기관별 교육 실적 (가로 막대) -->
+          <div class="infographic-card full-width">
+            <h3>🏢 기관별 교육 실적</h3>
+            <div class="chart-wrap"><canvas id="chartOrg"></canvas></div>
+          </div>
+
+          <!-- 6. 대상별 교육 실적 (다중 선택) -->
+          <div class="infographic-card full-width">
+            <h3>🎯 대상별 교육 실적</h3>
+            <div class="target-chip-actions">
+              <button onclick="selectAllTargetChips()">전체 선택</button>
+              <button onclick="deselectAllTargetChips()">전체 해제</button>
+            </div>
+            <div class="target-chip-group" id="targetChipGroup"></div>
+            <div class="chart-wrap"><canvas id="chartTarget"></canvas></div>
+          </div>
+
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModal('infographicModal')">닫기</button>
+      </div>
+    </div>
+  </div>
+
 
   <!-- Toast container -->
   <div class="toast-container" id="toastContainer"></div>
@@ -1570,7 +1971,7 @@
     }
     const MONTHS = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'];
     const REGIONS = ['서울', '부산', '인천', '대구', '대전', '광주', '울산', '세종', '경기', '강원', '충북', '충남', '전북', '전남', '경북', '경남', '제주'];
-    const TYPES = ['강의형(대면)교육', '온라인 실시간', '체험형', '아웃리치'];
+    const TYPES = ['강의형(대면)교육', '온라인 실시간', '체험형', '아웃리치', 'FPG'];
     const JAWONS = ['기금', '자체', '기타'];
     const TARGET_KEYS = [
       '국가대표', '국가대표후보', '청소년대표', '꿈나무선수', 'RTPTP',
@@ -1680,7 +2081,7 @@
         showToast('데이터 로드 실패: ' + err.message, 'error');
       });
     }
-    function addLog(field, change, value) {
+    function addLog(field, change, value, result) {
       if (!Array.isArray(logs)) logs = [];
       const now = new Date();
       let ts;
@@ -1694,7 +2095,8 @@
         timestamp: ts,
         field: field,
         change: change,
-        value: value
+        value: value,
+        result: result || ''  // 액션 결과: '✅ 저장 완료', '❌ 실패' 등
       });
       // 최대 500개 유지
       if (logs.length > 500) logs.splice(0, logs.length - 500);
@@ -1787,18 +2189,80 @@
       const regions = Array.from(document.querySelectorAll('[name="filter_region"]:checked')).map(c => c.value);
       const types = Array.from(document.querySelectorAll('[name="filter_type"]:checked')).map(c => c.value);
       const jawons = Array.from(document.querySelectorAll('[name="filter_jawon"]:checked')).map(c => c.value);
-      return { months, regions, types, jawons };
+      const targets = Array.from(document.querySelectorAll('[name="filter_target"]:checked')).map(c => c.value);
+      updateFilterBadges({ months, regions, types, jawons, targets });
+      return { months, regions, types, jawons, targets };
     }
 
+    function updateFilterBadges(f) {
+      const pairs = [
+        ['badge_month', f.months],
+        ['badge_region', f.regions],
+        ['badge_type', f.types],
+        ['badge_jawon', f.jawons],
+        ['badge_target', f.targets],
+      ];
+      let anyActive = document.getElementById('searchInput').value.trim().length > 0;
+      pairs.forEach(([id, arr]) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (arr.length > 0) {
+          el.textContent = arr.length;
+          el.classList.add('active');
+          anyActive = true;
+        } else {
+          el.textContent = '';
+          el.classList.remove('active');
+        }
+      });
+      const resetBtn = document.getElementById('filterResetBtn');
+      if (resetBtn) resetBtn.style.display = anyActive ? 'inline-block' : 'none';
+    }
+
+    function resetAllFilters() {
+      document.getElementById('searchInput').value = '';
+      document.querySelectorAll('[name="filter_month"],[name="filter_region"],[name="filter_type"],[name="filter_jawon"],[name="filter_target"]')
+        .forEach(c => c.checked = false);
+      renderTable();
+    }
+
+    function toggleFdd(id) {
+      const el = document.getElementById(id);
+      const isOpen = el.classList.contains('open');
+      // 모두 닫기
+      document.querySelectorAll('.fdd.open').forEach(d => d.classList.remove('open'));
+      if (!isOpen) el.classList.add('open');
+    }
+
+    // 외부 클릭 시 드롭다운 닫기
+    document.addEventListener('click', e => {
+      if (!e.target.closest('.fdd')) {
+        document.querySelectorAll('.fdd.open').forEach(d => d.classList.remove('open'));
+      }
+    });
+
     function filteredRecords() {
-      const q = document.getElementById('searchInput').value.toLowerCase();
+      const q = document.getElementById('searchInput').value.toLowerCase().trim();
       const filters = getSelectedFilters();
       let result = records.map((r, i) => ({ r, i })).filter(({ r }) => {
-        if (q && !((r.교육명 || '').toLowerCase().includes(q))) return false;
+        if (q) {
+          // 모든 텍스트 필드에서 검색 (강사1~강사9 개별 필드 모두 포함)
+          const searchFields = [
+            r.교육명, r.기관명, r.담당자, r.권역,
+            r.교육유형, r.자원, r.비고, r.교육장소, r.교육일,
+            String(r.월 || ''),
+            r.강사1, r.강사2, r.강사3, r.강사4, r.강사5,
+            r.강사6, r.강사7, r.강사8, r.강사9
+          ];
+          const combined = searchFields.filter(Boolean).join(' ').toLowerCase();
+          if (!combined.includes(q)) return false;
+        }
         if (filters.months.length > 0 && !filters.months.includes(String(r.월))) return false;
         if (filters.regions.length > 0 && !filters.regions.includes(r.권역)) return false;
         if (filters.types.length > 0 && !filters.types.includes(r.교육유형)) return false;
         if (filters.jawons.length > 0 && !filters.jawons.includes(r.자원)) return false;
+        // 대상별 필터: 선택한 대상 중 하나라도 인원이 있는 레코드
+        if (filters.targets.length > 0 && !filters.targets.some(t => parseInt(r[t]) > 0)) return false;
         return true;
       });
       // 정렬
@@ -1931,14 +2395,18 @@
       editingId = null;
       document.getElementById('modalTitle').textContent = '새 교육 레코드 추가';
       clearForm();
-      // 신규 추가: 잠금 없음, 개발자 버튼 숨김
+      // 신규 추가: 잠금 없음, 개발자 버튼 숨김, 가져오기 버튼 표시
       lockBasicSections(false);
       document.getElementById('btnDevUnlock').style.display = 'none';
+      document.getElementById('importBtnsInModal').style.display = 'flex';
+      document.getElementById('btnSaveRecord').style.display = '';
       document.getElementById('editModal').classList.add('active');
     }
 
     function openEditModal(_id) {
       editingId = _id;
+      // 수정 모드: 가져오기 버튼 숨김
+      document.getElementById('importBtnsInModal').style.display = 'none';
       const r = records.find(rec => rec._id === _id);
       document.getElementById('modalTitle').textContent = '교육 레코드 수정';
       clearForm();
@@ -2122,26 +2590,40 @@
                 return db.collection(FS_COL).doc(docId).set(data);
               }
             }
-            // 벌크 데이터 문서를 찾을 수 없는 경우 오류 발생시켜 더 안전하게 처리
             throw new Error('데이터 소스를 찾을 수 없습니다.');
           })
-            .then(() => showToast('수정 완료', 'success'))
+            .then(() => {
+              showToast('수정 완료', 'success');
+              addLog(oldRecord.교육명, '저장결과', '', '✅ 수정 완료');
+            })
             .catch(e => {
               console.error('수정 실패:', e);
               showToast('수정 실패: ' + e.message, 'error');
+              addLog(oldRecord.교육명, '저장결과', '', '❌ 저장 실패: ' + e.message);
             });
         } else {
           // 개별 문서 수정
           db.collection(FS_COL).doc(editingId).set(updated)
-            .then(() => showToast('수정 완료', 'success'))
-            .catch(e => showToast('저장 실패: ' + e.message, 'error'));
+            .then(() => {
+              showToast('수정 완료', 'success');
+              addLog(oldRecord.교육명, '저장결과', '', '✅ 수정 완료');
+            })
+            .catch(e => {
+              showToast('저장 실패: ' + e.message, 'error');
+              addLog(oldRecord.교육명, '저장결과', '', '❌ 저장 실패: ' + e.message);
+            });
         }
       } else {
         // 신규: 새 Firestore 문서 추가 (자동 ID)
-        addLog('신규추가', '교육명', name);
         db.collection(FS_COL).add(r)
-          .then(() => showToast('추가 완료', 'success'))
-          .catch(e => showToast('저장 실패: ' + e.message, 'error'));
+          .then(() => {
+            showToast('추가 완료', 'success');
+            addLog('신규추가', '교육명', name, '✅ 저장 완료');
+          })
+          .catch(e => {
+            showToast('저장 실패: ' + e.message, 'error');
+            addLog('신규추가', '교육명', name, '❌ 저장 실패');
+          });
       }
       // renderTable은 onSnapshot이 자동 처리
       closeModal('editModal');
@@ -2150,10 +2632,16 @@
     function deleteRecord(_id) {
       const rec = records.find(r => r._id === _id);
       if (!confirm('이 레코드를 삭제하시겠습니까?')) return;
-      addLog(rec ? rec.교육명 : '', '삭제', '');
+      const recName = rec ? rec.교육명 : '';
       db.collection(FS_COL).doc(_id).delete()
-        .then(() => showToast('삭제됨'))
-        .catch(e => showToast('삭제 실패: ' + e.message, 'error'));
+        .then(() => {
+          showToast('삭제됨');
+          addLog(recName, '삭제', '', '✅ 삭제 완료');
+        })
+        .catch(e => {
+          showToast('삭제 실패: ' + e.message, 'error');
+          addLog(recName, '삭제', '', '❌ 삭제 실패: ' + e.message);
+        });
       // renderTable은 onSnapshot이 자동 처리
     }
 
@@ -2162,23 +2650,26 @@
       if (pw === null) return;
       if (pw !== '0318@') { showToast('비밀번호가 틀렸습니다', 'error'); return; }
       if (!confirm(`전체 ${records.length}건 데이터를 모두 삭제하시겠습니까?`)) return;
-      addLog('버튼클릭', '전체삭제', '-');
+      const totalCnt = records.length;
       db.collection(FS_COL).get().then(snap => {
         const batch = db.batch();
         snap.docs.forEach(doc => batch.delete(doc.ref));
         return batch.commit();
       }).then(() => {
+        showToast('전체 삭제됨');
+        addLog('버튼클릭', '전체삭제', `${totalCnt}건`, '✅ 전체 삭제 완료');
         logs = [];
         saveLogs();
-        showToast('전체 삭제됨');
-      }).catch(e => showToast('삭제 실패: ' + e.message, 'error'));
+      }).catch(e => {
+        showToast('삭제 실패: ' + e.message, 'error');
+        addLog('버튼클릭', '전체삭제', `${totalCnt}건`, '❌ 삭제 실패: ' + e.message);
+      });
     }
 
     // ================================================================
     // IMPORT / EXPORT
     // ================================================================
     function importExcel(input) {
-      addLog('버튼클릭', 'Excel 가져오기', '-');
       const file = input.files[0];
       if (!file) return;
       const reader = new FileReader();
@@ -2213,15 +2704,20 @@
             saveBatchToFirestore(toAdd)
               .then(() => {
                 showToast(`${imported}건 Firestore 저장 완료`, 'success');
-                // renderTable은 onSnapshot이 자동 처리하므로 명시적 호출 불필요할 수 있으나 확인용으로 남김
+                addLog('버튼클릭', 'Excel 가져오기', `${imported}건`, '✅ 가져오기 완료');
                 renderTable();
               })
-              .catch(e => showToast('저장 실패: ' + e.message, 'error'));
+              .catch(e => {
+                showToast('저장 실패: ' + e.message, 'error');
+                addLog('버튼클릭', 'Excel 가져오기', `${imported}건 파싱`, '❌ 저장 실패: ' + e.message);
+              });
           } else {
             showToast('가져올 데이터가 없습니다', 'error');
+            addLog('버튼클릭', 'Excel 가져오기', '0건', '⚠️ 가져올 데이터 없음');
           }
         } catch (e) {
           showToast('파일 파싱 오류: ' + e.message, 'error');
+          addLog('버튼클릭', 'Excel 가져오기', '-', '❌ 파싱 오류: ' + e.message);
         }
       };
       reader.readAsBinaryString(file);
@@ -2263,7 +2759,6 @@
     }
 
     function exportExcel() {
-      addLog('버튼클릭', 'Excel 내보내기', '-');
       if (records.length === 0) { showToast('내보낼 데이터가 없습니다', 'error'); return; }
 
       const wb = XLSX.utils.book_new();
@@ -2379,6 +2874,7 @@
       const date = new Date().toISOString().substring(0, 10).replace(/-/g, '');
       XLSX.writeFile(wb, `교육실적_2026_${date}.xlsx`);
       showToast(`${records.length}건 Excel 내보내기 완료`, 'success');
+      addLog('버튼클릭', 'Excel 내보내기', `${records.length}건`, '✅ 내보내기 완료');
     }
 
 
@@ -2480,6 +2976,23 @@
         div.innerHTML = `<input type="checkbox" id="${id}" name="filter_jawon" value="${jawon}" onchange="renderTable()">
       <label for="${id}">${jawon}</label>`;
         jawonGroup.appendChild(div);
+      });
+
+      // Initialize target checkboxes (대상별)
+      const targetShortLabels = [
+        '국대', '국후', '청소년', '꿈나무', 'RTP', '제재복', '직장', '장국', '장선', '장지',
+        '초등', '중등', '고등', '체중', '체고', '유스', '대학', '클럽', '교사', '학부모',
+        'KBL', 'KOVO', 'KBO', 'WKBL', 'KLPGA', 'KPGA', 'K리그', '경륜',
+        '1전', '2전', '1장', '2장', '1생', '2생', '건운', '노인', '유소', '행정', '지도', '트레', '기타'
+      ];
+      const targetGroup = document.getElementById('filterTargetGroup');
+      TARGET_KEYS.forEach((key, idx) => {
+        const div = document.createElement('div');
+        div.className = 'filter-check';
+        const id = 'filter_tg_' + idx;
+        div.innerHTML = `<input type="checkbox" id="${id}" name="filter_target" value="${key}" onchange="renderTable()">
+      <label for="${id}">${targetShortLabels[idx] || key}</label>`;
+        targetGroup.appendChild(div);
       });
     }
 
@@ -2670,32 +3183,181 @@
 
     function renderLogs() {
       const container = document.getElementById('logsContainer');
+      const logCountEl = document.getElementById('logCount');
+
       if (!logs || logs.length === 0) {
         container.innerHTML = '<div style="padding:40px;text-align:center;color:var(--muted)">로그 기록이 없습니다.</div>';
+        if (logCountEl) logCountEl.textContent = '';
         return;
       }
 
-      // 역순 (최신순)
-      const sorted = [...logs].reverse();
-      container.innerHTML = sorted.map(log => {
-        let dateStr = '알 수 없음';
+      // 필터 값 읽기
+      const logSearchEl = document.getElementById('logSearchInput');
+      const logTypeEl = document.getElementById('logTypeFilter');
+      const searchQ = logSearchEl ? logSearchEl.value.toLowerCase().trim() : '';
+      const typeFilter = logTypeEl ? logTypeEl.value : '';
+
+      // 로그 타입별 색상/아이콘 설정
+      const logTypeConfig = {
+        '신규추가': { icon: '➕', color: '#16a34a', bg: '#dcfce7', label: '신규추가' },
+        '수정': { icon: '✏️', color: '#2563eb', bg: '#dbeafe', label: '수정' },
+        '삭제': { icon: '🗑️', color: '#dc2626', bg: '#fee2e2', label: '삭제' },
+        '검색': { icon: '🔍', color: '#7c3aed', bg: '#ede9fe', label: '검색' },
+        '보안': { icon: '🔐', color: '#d97706', bg: '#fef3c7', label: '보안' },
+        '백업': { icon: '💾', color: '#0891b2', bg: '#cffafe', label: '백업' },
+        '복구': { icon: '🔄', color: '#059669', bg: '#d1fae5', label: '복구' },
+        '버튼클릭': { icon: '👆', color: '#6b7280', bg: '#f3f4f6', label: '기타' },
+        '엑셀가져오기': { icon: '📥', color: '#0369a1', bg: '#e0f2fe', label: '가져오기' },
+      };
+
+      function getLogType(log) {
+        // field가 신규추가/삭제/검색/보안/백업/복구/버튼클릭/엑셀가져오기인 경우
+        const knownTypes = ['신규추가', '삭제', '검색', '보안', '백업', '복구', '버튼클릭', '엑셀가져오기'];
+        if (knownTypes.includes(log.field)) return log.field;
+        // change가 '삭제'인 경우
+        if (log.change === '삭제') return '삭제';
+        // 그 외는 '수정' (교육명이 field인 경우)
+        return '수정';
+      }
+
+      function formatRelativeTime(date) {
+        const now = new Date();
+        const diff = Math.floor((now - date) / 1000);
+        if (diff < 60) return `${diff}초 전`;
+        if (diff < 3600) return `${Math.floor(diff / 60)}분 전`;
+        if (diff < 86400) return `${Math.floor(diff / 3600)}시간 전`;
+        if (diff < 604800) return `${Math.floor(diff / 86400)}일 전`;
+        return null;
+      }
+
+      function formatDate(log) {
+        try {
+          if (!log.timestamp) return '날짜 없음';
+          const d = (typeof log.timestamp.toDate === 'function') ? log.timestamp.toDate() : new Date(log.timestamp);
+          if (isNaN(d)) return '날짜 오류';
+          const rel = formatRelativeTime(d);
+          const full = d.toLocaleString('ko-KR', {
+            year: 'numeric', month: '2-digit', day: '2-digit',
+            hour: '2-digit', minute: '2-digit', second: '2-digit'
+          });
+          return rel ? `<span title="${full}">${rel}</span>` : `<span>${full}</span>`;
+        } catch (e) { return '날짜 오류'; }
+      }
+
+      // 역순(최신순) + 필터 적용
+      let sorted = [...logs].reverse();
+
+      if (typeFilter) {
+        sorted = sorted.filter(log => {
+          const t = getLogType(log);
+          if (typeFilter === '버튼클릭') return t === '버튼클릭' || t === '엑셀가져오기';
+          if (typeFilter === '수정') return t === '수정';
+          return t === typeFilter;
+        });
+      }
+
+      if (searchQ) {
+        sorted = sorted.filter(log => {
+          const combined = [log.field, log.change, log.value, log.result].filter(Boolean).join(' ').toLowerCase();
+          return combined.includes(searchQ);
+        });
+      }
+
+      if (logCountEl) {
+        logCountEl.textContent = `총 ${logs.length}건 중 ${sorted.length}건 표시`;
+      }
+
+      if (sorted.length === 0) {
+        container.innerHTML = '<div style="padding:40px;text-align:center;color:var(--muted)">조건에 맞는 로그가 없습니다.</div>';
+        return;
+      }
+
+      // 날짜별 그룹핑
+      const groups = {};
+      sorted.forEach(log => {
+        let dayKey = '날짜 없음';
         try {
           if (log.timestamp) {
             const d = (typeof log.timestamp.toDate === 'function') ? log.timestamp.toDate() : new Date(log.timestamp);
-            dateStr = d.toLocaleString();
+            if (!isNaN(d)) dayKey = d.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' });
           }
-        } catch (e) { console.error('Date parsing error', e); }
+        } catch (e) { }
+        if (!groups[dayKey]) groups[dayKey] = [];
+        groups[dayKey].push(log);
+      });
+
+      container.innerHTML = Object.entries(groups).map(([day, dayLogs]) => {
+        const rows = dayLogs.map(log => {
+          const logType = getLogType(log);
+          const cfg = logTypeConfig[logType] || { icon: '•', color: '#6b7280', bg: '#f3f4f6', label: logType };
+          const isMod = logType === '수정';
+
+          // 수정 로그: field=교육명, change=필드명, value='이전→이후'
+          let mainTitle = '';
+          let subContent = '';
+
+          if (isMod) {
+            mainTitle = `<span style="font-weight:700; color:#1e293b;">${escHtml(log.field || '')}</span>`;
+            const changeParts = (log.value || '').split(' → ');
+            if (changeParts.length === 2) {
+              subContent = `
+                <span style="color:#6b7280;">[${escHtml(log.change || '')}]</span>
+                <span style="background:#fee2e2; color:#dc2626; padding:1px 5px; border-radius:3px; margin:0 4px; font-size:11px;">${escHtml(changeParts[0])}</span>
+                <span style="color:#9ca3af;">→</span>
+                <span style="background:#dcfce7; color:#16a34a; padding:1px 5px; border-radius:3px; margin:0 4px; font-size:11px;">${escHtml(changeParts[1])}</span>
+              `;
+            } else {
+              subContent = `<span style="color:#374151;">${escHtml(log.change || '')} : ${escHtml(log.value || '')}</span>`;
+            }
+          } else {
+            mainTitle = `<span style="font-weight:700; color:#1e293b;">${escHtml(log.change || '')}</span>`;
+            subContent = log.value ? `<span style="color:#6b7280;">${escHtml(log.value)}</span>` : '';
+          }
+
+          // 결과 배지 처리
+          const resultStr = log.result || '';
+          let resultBadge = '';
+          if (resultStr) {
+            const isOk = resultStr.startsWith('✅');
+            const isFail = resultStr.startsWith('❌');
+            const isWarn = resultStr.startsWith('⚠️');
+            const rColor = isOk ? '#16a34a' : isFail ? '#dc2626' : isWarn ? '#d97706' : '#6b7280';
+            const rBg = isOk ? '#dcfce7' : isFail ? '#fee2e2' : isWarn ? '#fef3c7' : '#f3f4f6';
+            resultBadge = `<span style="display:inline-block; padding:2px 8px; border-radius:8px; font-size:11px; font-weight:600; background:${rBg}; color:${rColor}; white-space:nowrap;">${escHtml(resultStr)}</span>`;
+          }
+
+          return `
+            <div style="display:grid; grid-template-columns:100px 1fr 160px 100px; align-items:center; gap:10px; padding:8px 16px; border-bottom:1px solid #f1f5f9; transition:background 0.1s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+              <div style="text-align:center;">
+                <span style="display:inline-block; padding:2px 7px; border-radius:10px; font-size:11px; font-weight:700; background:${cfg.bg}; color:${cfg.color};">
+                  ${cfg.icon} ${cfg.label}
+                </span>
+              </div>
+              <div style="font-size:12px; line-height:1.65; overflow:hidden;">
+                <div style="font-weight:600; color:#1e293b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${mainTitle}</div>
+                <div style="margin-top:2px; color:#64748b;">${subContent}</div>
+              </div>
+              <div style="text-align:center;">
+                ${resultBadge}
+              </div>
+              <div style="font-size:11px; color:#9ca3af; white-space:nowrap; text-align:right;">
+                ${formatDate(log)}
+              </div>
+            </div>
+          `;
+        }).join('');
 
         return `
-           <div class="log-item" style="padding:10px 15px; border-bottom:1px solid #eee; font-size:12px">
-             <div style="display:flex; justify-content:space-between; margin-bottom:4px">
-               <span style="font-weight:700; color:var(--accent)">[${log.field}]</span>
-               <span style="color:var(--muted); font-size:10px">${dateStr}</span>
-             </div>
-             <div style="color:#333"><strong>${log.change}</strong>: ${log.value}</div>
-           </div>
-         `;
+          <div style="background:#f1f5f9; padding:5px 16px; font-size:11px; font-weight:700; color:#64748b; border-bottom:1px solid #e2e8f0; position:sticky; top:0; z-index:1;">
+            ${day} &nbsp;·&nbsp; ${dayLogs.length}건
+          </div>
+          ${rows}
+        `;
       }).join('');
+    }
+
+    function escHtml(str) {
+      return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
 
     function clearLogsData() {
@@ -2821,6 +3483,469 @@
         const btn = document.getElementById('btnMigrate');
         if (btn) btn.style.display = 'inline-flex';
       }
+    }
+
+    // ================================================================
+    // INFOGRAPHIC
+    // ================================================================
+    let _infoCharts = {};
+    let _activeTargets = new Set(TARGET_KEYS.slice(0, 10));
+
+    function openInfographicModal() {
+      openModal('infographicModal');
+      setTimeout(buildInfographicCharts, 120);
+    }
+
+    function destroyInfoChart(key) {
+      if (_infoCharts[key]) {
+        _infoCharts[key].destroy();
+        delete _infoCharts[key];
+      }
+    }
+
+    function getParticipants(r) {
+      return parseInt(r.참여자수) || parseInt(r.인원_계) || 0;
+    }
+
+    function buildInfographicCharts() {
+      const data = records;
+
+      /* ── 1. 월별 교육 실적 (복합 차트: 스택바 + 듀얼 라인) ── */
+      try {
+        destroyInfoChart('monthly');
+        const mCount    = Array(12).fill(0);
+        const mLecture  = Array(12).fill(0);
+        const mActivity = Array(12).fill(0);
+        const mInstr = Array(12).fill(0);
+
+        data.forEach(r => {
+          const m = parseInt(r.월) || (r.교육일 ? new Date(r.교육일).getMonth() + 1 : 0);
+          if (m < 1 || m > 12) return;
+          const mi = m - 1;
+          mCount[mi]++;
+          const typ = (r.교육유형 || r.유형 || '').trim();
+          if (typ === '강의형(대면)교육' || typ === '온라인 실시간') mLecture[mi]++;
+          else if (typ === '체험형' || typ === '아웃리치' || typ === 'FPG') mActivity[mi]++;
+          // 총 출강 횟수: 강사수 필드 우선, 없으면 강사1~9 채워진 필드 수로 계산
+          const instrNum = parseInt(r.강사수);
+          if (instrNum > 0) {
+            mInstr[mi] += instrNum;
+          } else {
+            for (let i = 1; i <= 9; i++) {
+              if ((r['강사' + i] || '').trim()) mInstr[mi]++;
+            }
+          }
+        });
+
+        // Y축 max: 단일 막대(총건수) + 3개 라인 중 최대값 + 20% 여백
+        const yRawMax = Math.max(...mCount, ...mInstr, ...mLecture, ...mActivity);
+        const yAxisMax = yRawMax + Math.max(2, Math.ceil(yRawMax * 0.20));
+
+        _infoCharts.monthly = new Chart(document.getElementById('chartMonthly'), {
+          type: 'bar',
+          plugins: [ChartDataLabels],
+          data: {
+            labels: MONTHS,
+            datasets: [
+              {
+                // 총 교육 건수 → 막대 (배경 역할)
+                label: '총 교육 건수',
+                type: 'bar',
+                data: mCount,
+                backgroundColor: 'rgba(99,102,241,0.18)',
+                borderColor: 'rgba(99,102,241,0.40)',
+                borderWidth: 1,
+                borderRadius: 4,
+                order: 4,
+              },
+              {
+                // 전문강사 수 → 꺽은선
+                label: '전문강사 수',
+                type: 'line',
+                data: mInstr,
+                borderColor: '#16a34a',
+                backgroundColor: 'transparent',
+                fill: false,
+                tension: 0.35,
+                pointBackgroundColor: '#16a34a',
+                pointBorderColor: '#fff',
+                pointBorderWidth: 2,
+                pointRadius: 4,
+                pointHoverRadius: 6,
+                borderWidth: 2,
+                order: 1,
+              },
+              {
+                // 강의형 교육 횟수 → 꺽은선
+                label: '강의형 교육',
+                type: 'line',
+                data: mLecture,
+                borderColor: '#2563eb',
+                backgroundColor: 'transparent',
+                fill: false,
+                tension: 0.35,
+                pointBackgroundColor: '#2563eb',
+                pointBorderColor: '#fff',
+                pointBorderWidth: 2,
+                pointRadius: 4,
+                pointHoverRadius: 6,
+                borderWidth: 2,
+                order: 2,
+              },
+              {
+                // 활동형 교육 횟수 → 꺽은선
+                label: '활동형 교육',
+                type: 'line',
+                data: mActivity,
+                borderColor: '#f59e0b',
+                backgroundColor: 'transparent',
+                fill: false,
+                tension: 0.35,
+                pointBackgroundColor: '#f59e0b',
+                pointBorderColor: '#fff',
+                pointBorderWidth: 2,
+                pointRadius: 4,
+                pointHoverRadius: 6,
+                borderWidth: 2,
+                order: 3,
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+              legend: {
+                display: true,
+                position: 'top',
+                labels: { font: { size: 11 }, padding: 12, usePointStyle: true, pointStyleWidth: 10, color: '#374151' }
+              },
+              datalabels: {
+                // 막대(총건수)만 레이블 표시, 라인은 표시 안 함
+                display: ctx => {
+                  try { return ctx.dataset.type !== 'line' && ctx.parsed && ctx.parsed.y > 0; }
+                  catch(e) { return false; }
+                },
+                anchor: 'end', align: 'top',
+                font: { weight: '800', size: 10 }, color: '#6366f1',
+                formatter: v => v > 0 ? v : '',
+              },
+              tooltip: {
+                backgroundColor: 'rgba(30,41,59,0.92)', titleColor: '#e2e8f0', bodyColor: '#cbd5e1', padding: 10,
+                callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y}회` }
+              }
+            },
+            scales: {
+              x: { grid: { display: false }, ticks: { font: { size: 11 } } },
+              // stacked 제거 → 라인이 누적 오류 없이 정확한 y값에 표시됨
+              y: { beginAtZero: true, max: yAxisMax, ticks: { stepSize: 1 }, grid: { color: '#f1f5f9' } }
+            }
+          }
+        });
+      } catch(e) { console.error('월별 차트 오류:', e); }
+
+      /* ── 2. 권역별 지도 ────────────────────────────────── */
+      try {
+        buildKoreaMap(data);
+      } catch(e) {
+        console.error('권역별 지도 오류:', e);
+        const mc = document.getElementById('koreaMapContainer');
+        if (mc) mc.innerHTML = '<div style="padding:24px;text-align:center;color:#dc2626;font-size:12px">&#9888; 지도 오류: ' + (e.message || e) + '</div>';
+      }
+
+      /* ── 3. 유형별 교육 실적 ───────────────────────────── */
+      try {
+        destroyInfoChart('type');
+        const typeCounts = {};
+        data.forEach(r => {
+          const t = (r.교육유형 || r.유형 || '기타').trim();
+          typeCounts[t] = (typeCounts[t] || 0) + 1;
+        });
+        const typeLabels = Object.keys(typeCounts);
+        const typeColors = ['#2563eb','#7c3aed','#0891b2','#16a34a','#dc2626','#d97706','#64748b','#0e7490'];
+        _infoCharts.type = new Chart(document.getElementById('chartType'), {
+          type: 'pie',
+          plugins: [ChartDataLabels],
+          data: {
+            labels: typeLabels,
+            datasets: [{ data: typeLabels.map(l => typeCounts[l]), backgroundColor: typeColors.slice(0, typeLabels.length), borderWidth: 2, borderColor: '#fff' }]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 10, boxWidth: 14 } },
+              datalabels: {
+                formatter: (val, ctx) => {
+                  const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                  const pct = Math.round(val / total * 100);
+                  return pct > 4 ? pct + '%' : '';
+                },
+                color: '#fff', font: { weight: '700', size: 12 }
+              }
+            }
+          }
+        });
+      } catch(e) { console.error('유형별 차트 오류:', e); }
+
+      /* ── 4. 강사별 교육 실적 (수평 롤리팝 SVG) ─────────── */
+      try {
+        destroyInfoChart('instructor');
+        const iCounts = {};
+        data.forEach(r => {
+          for (let i = 1; i <= 9; i++) {
+            const nm = (r['강사' + i] || '').trim();
+            if (nm) iCounts[nm] = (iCounts[nm] || 0) + 1;
+          }
+        });
+        const iSorted = Object.entries(iCounts).sort((a, b) => b[1] - a[1]).slice(0, 15);
+        const instrCanvas = document.getElementById('chartInstructor');
+        instrCanvas.style.display = 'none';
+        const instrWrap = instrCanvas.parentElement;
+        const oldInstr = instrWrap.querySelector('.instr-lollipop');
+        if (oldInstr) oldInstr.remove();
+
+        const lollPalette = ['#6d28d9','#7c3aed','#8b5cf6','#a78bfa','#c4b5fd',
+          '#1d4ed8','#2563eb','#3b82f6','#0891b2','#0e7490',
+          '#15803d','#16a34a','#d97706','#b45309','#92400e'];
+        const iDiv = document.createElement('div');
+        iDiv.className = 'instr-lollipop';
+
+        if (iSorted.length === 0) {
+          iDiv.innerHTML = '<div style="padding:40px;text-align:center;color:#94a3b8">데이터 없음</div>';
+        } else {
+          const imaxV = iSorted[0][1];
+          const LW = 90, BARW = 240, ROW = 34, PAD = 8;
+          const iSvgW = LW + BARW + 48;
+          const iSvgH = iSorted.length * ROW + PAD * 2;
+          let svgStr = `<svg viewBox="0 0 ${iSvgW} ${iSvgH}" xmlns="http://www.w3.org/2000/svg" style="width:100%;display:block;overflow:visible">`;
+          iSorted.forEach(([name, cnt], idx) => {
+            const iy = PAD + idx * ROW + ROW / 2;
+            const bW = Math.max(8, (cnt / imaxV) * BARW);
+            const col = lollPalette[idx % lollPalette.length];
+            svgStr += `<rect x="${LW}" y="${iy-6}" width="${BARW}" height="12" rx="6" fill="#f1f5f9"/>` +
+              `<rect x="${LW}" y="${iy-6}" width="${bW}" height="12" rx="6" fill="${col}28"/>` +
+              `<line x1="${LW+6}" y1="${iy}" x2="${LW+bW-8}" y2="${iy}" stroke="${col}" stroke-width="2" stroke-linecap="round" opacity="0.7"/>` +
+              `<circle cx="${LW+bW}" cy="${iy}" r="9" fill="${col}"/>` +
+              `<text x="${LW+bW}" y="${iy+4}" text-anchor="middle" font-size="9" font-weight="800" fill="#fff" font-family="sans-serif">${cnt}</text>` +
+              `<text x="${LW-8}" y="${iy+4}" text-anchor="end" font-size="11" font-weight="600" fill="#374151" font-family="sans-serif">${name}</text>`;
+          });
+          svgStr += '</svg>';
+          iDiv.innerHTML = svgStr;
+        }
+        instrWrap.appendChild(iDiv);
+      } catch(e) { console.error('강사별 차트 오류:', e); }
+
+      /* ── 5. 기관별 교육 실적 (메달 순위 리스트) ─────────── */
+      try {
+        destroyInfoChart('org');
+        const oCounts = {};
+        data.forEach(r => {
+          const o = (r.기관명 || '').trim();
+          if (o) oCounts[o] = (oCounts[o] || 0) + 1;
+        });
+        const oSorted = Object.entries(oCounts).sort((a, b) => b[1] - a[1]).slice(0, 15);
+        const orgCanvas = document.getElementById('chartOrg');
+        orgCanvas.style.display = 'none';
+        const orgWrap = orgCanvas.parentElement;
+        const oldOrg = orgWrap.querySelector('.org-ranked');
+        if (oldOrg) oldOrg.remove();
+
+        const omaxV = oSorted.length ? oSorted[0][1] : 1;
+        const oMedals = ['🥇','🥈','🥉'];
+        const oBgs    = ['#fffbeb','#f8fafc','#fff7ed'];
+        const oBords  = ['1px solid #fde68a','1px solid #e2e8f0','1px solid #fed7aa'];
+
+        const oDiv = document.createElement('div');
+        oDiv.className = 'org-ranked';
+        oDiv.style.cssText = 'max-height:380px;overflow-y:auto;padding:2px 4px 2px 2px';
+
+        if (oSorted.length === 0) {
+          oDiv.innerHTML = '<div style="padding:40px;text-align:center;color:#94a3b8">데이터 없음</div>';
+        } else {
+          oSorted.forEach(([name, cnt], i) => {
+            const pct   = Math.round((cnt / omaxV) * 100);
+            const isTop = i < 3;
+            const row   = document.createElement('div');
+            row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 10px;margin-bottom:5px;' +
+              'background:' + (isTop ? oBgs[i] : 'transparent') + ';' +
+              'border:' + (isTop ? oBords[i] : '1px solid transparent') + ';border-radius:10px';
+            const badgeHTML = isTop
+              ? `<span style="font-size:17px">${oMedals[i]}</span>`
+              : `<span style="width:24px;height:24px;border-radius:50%;background:#e2e8f0;color:#64748b;font-size:10px;font-weight:700;display:inline-flex;align-items:center;justify-content:center">${i+1}</span>`;
+            row.innerHTML =
+              `<div style="flex-shrink:0;width:28px;display:flex;align-items:center;justify-content:center">${badgeHTML}</div>` +
+              `<div style="flex:1;min-width:0">` +
+                `<div style="font-size:12px;font-weight:700;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:5px">${name}</div>` +
+                `<div style="display:flex;align-items:center;gap:8px">` +
+                  `<div style="flex:1;background:#f1f5f9;border-radius:99px;height:7px;overflow:hidden">` +
+                    `<div style="width:${pct}%;height:100%;background:linear-gradient(90deg,#2563eb,#7c3aed);border-radius:99px"></div>` +
+                  `</div>` +
+                  `<span style="font-size:14px;font-weight:800;color:#1d4ed8;min-width:24px;text-align:right">${cnt}</span>` +
+                  `<span style="font-size:9px;color:#94a3b8">회</span>` +
+                `</div>` +
+              `</div>`;
+            oDiv.appendChild(row);
+          });
+        }
+        orgWrap.appendChild(oDiv);
+      } catch(e) { console.error('기관별 차트 오류:', e); }
+
+      /* ── 6. 대상별 교육 실적 ───────────────────────────── */
+      try {
+        buildTargetChips();
+      } catch(e) { console.error('대상별 차트 오류:', e); }
+    }
+
+    /* ── 한국 지도 (타일 카토그램) ──────────────────────── */
+    function buildKoreaMap(data) {
+      const regionCount = {};
+      REGIONS.forEach(r => { regionCount[r] = 0; });
+      data.forEach(rec => {
+        if (rec.권역 && regionCount.hasOwnProperty(rec.권역)) regionCount[rec.권역]++;
+      });
+
+      const maxVal = Math.max(1, ...Object.values(regionCount));
+
+      // 한국 지리 배치 기반 타일 카토그램 (col 0~3, row 0~5)
+      const tiles = [
+        { n: '강원',  col:3, row:0 },
+        { n: '인천',  col:0, row:1, city:true },
+        { n: '서울',  col:1, row:1, city:true },
+        { n: '경기',  col:2, row:1 },
+        { n: '충남',  col:0, row:2 },
+        { n: '세종',  col:1, row:2, city:true },
+        { n: '충북',  col:2, row:2 },
+        { n: '경북',  col:3, row:2 },
+        { n: '전북',  col:0, row:3 },
+        { n: '대전',  col:1, row:3, city:true },
+        { n: '대구',  col:2, row:3, city:true },
+        { n: '울산',  col:3, row:3, city:true },
+        { n: '전남',  col:0, row:4 },
+        { n: '광주',  col:1, row:4, city:true },
+        { n: '경남',  col:2, row:4 },
+        { n: '부산',  col:3, row:4, city:true },
+        { n: '제주',  col:1, row:5 },
+      ];
+
+      const TW = 85, TH = 62, GAP = 6;
+      const svgW = 4 * (TW + GAP) + GAP;          // 370
+      const svgH = 6 * (TH + GAP) + GAP + 26;     // 440 (legend 포함)
+
+      let svg = `<svg viewBox="0 0 ${svgW} ${svgH}" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-height:420px">
+  <rect width="${svgW}" height="${svgH}" fill="#f8fafc" rx="10"/>`;
+
+      tiles.forEach(t => {
+        const cnt = regionCount[t.n] || 0;
+        const ratio = cnt / maxVal;
+        const x = t.col * (TW + GAP) + GAP;
+        const y = t.row * (TH + GAP) + GAP;
+        const cx = x + TW / 2;
+        const cy = y + TH / 2;
+
+        // 도·군 = 파랑 계열, 특·광역시·세종 = 주황 계열
+        let fr, fg, fb;
+        if (t.city) {
+          fr = Math.round(255 - ratio * 90);
+          fg = Math.round(237 - ratio * 150);
+          fb = Math.round(213 - ratio * 160);
+        } else {
+          fr = Math.round(219 - ratio * 190);
+          fg = Math.round(234 - ratio * 140);
+          fb = Math.round(254 - ratio * 100);
+        }
+        const fill   = `rgb(${fr},${fg},${fb})`;
+        const stroke = t.city ? (ratio > 0.3 ? '#f97316' : '#fed7aa') : (ratio > 0.3 ? '#3b82f6' : '#bfdbfe');
+        const txtFill = ratio > 0.6 ? '#fff' : '#1e293b';
+        const numFill = ratio > 0.6 ? 'rgba(255,255,255,0.96)'
+                      : (t.city ? '#c2410c' : '#1d4ed8');
+
+        svg += `
+  <rect x="${x}" y="${y}" width="${TW}" height="${TH}" fill="${fill}" stroke="${stroke}" stroke-width="1.5" rx="10"/>
+  <text x="${cx}" y="${cy - 9}" text-anchor="middle" font-size="10" font-weight="700" fill="${txtFill}" font-family="Malgun Gothic,sans-serif">${t.n}</text>
+  <text x="${cx}" y="${cy + 9}" text-anchor="middle" font-size="17" font-weight="900" fill="${numFill}" font-family="Malgun Gothic,sans-serif">${cnt > 0 ? cnt : '·'}</text>
+  <text x="${cx}" y="${cy + 22}" text-anchor="middle" font-size="8" fill="${numFill}" font-family="Malgun Gothic,sans-serif" opacity="0.75">${cnt > 0 ? '회' : ''}</text>`;
+      });
+
+      // 범례
+      const ly = svgH - 12;
+      svg += `
+  <rect x="8"  y="${ly - 9}" width="10" height="10" fill="rgb(185,215,255)" rx="2"/>
+  <text x="22" y="${ly}" font-size="8.5" fill="#64748b" font-family="Malgun Gothic,sans-serif">도·군</text>
+  <rect x="58" y="${ly - 9}" width="10" height="10" fill="rgb(255,205,175)" rx="2"/>
+  <text x="72" y="${ly}" font-size="8.5" fill="#64748b" font-family="Malgun Gothic,sans-serif">특·광역시·세종</text>
+</svg>`;
+
+      document.getElementById('koreaMapContainer').innerHTML = svg;
+    }
+
+    /* ── 대상 칩 ─────────────────────────────────────────── */
+    function buildTargetChips() {
+      const group = document.getElementById('targetChipGroup');
+      group.innerHTML = TARGET_KEYS.map((k, i) => {
+        const label = (TARGET_LABELS[i] || k).replace(/\n/g, ' ');
+        const active = _activeTargets.has(k) ? ' active' : '';
+        return `<span class="target-chip${active}" onclick="toggleTargetChip('${k}',this)">${label}</span>`;
+      }).join('');
+      renderTargetChart();
+    }
+
+    function toggleTargetChip(key, el) {
+      if (_activeTargets.has(key)) {
+        _activeTargets.delete(key);
+        el.classList.remove('active');
+      } else {
+        _activeTargets.add(key);
+        el.classList.add('active');
+      }
+      renderTargetChart();
+    }
+
+    function selectAllTargetChips() {
+      _activeTargets = new Set(TARGET_KEYS);
+      buildTargetChips();
+    }
+
+    function deselectAllTargetChips() {
+      _activeTargets = new Set();
+      buildTargetChips();
+    }
+
+    function renderTargetChart() {
+      destroyInfoChart('target');
+      const selected = TARGET_KEYS.filter(k => _activeTargets.has(k));
+      if (selected.length === 0) {
+        const ctx = document.getElementById('chartTarget');
+        if (ctx) ctx.style.display = 'none';
+        return;
+      }
+      document.getElementById('chartTarget').style.display = '';
+      const labels = selected.map(k => (TARGET_LABELS[TARGET_KEYS.indexOf(k)] || k).replace(/\n/g, ' '));
+      const sums = selected.map(k => records.reduce((s, r) => s + (parseInt(r[k]) || 0), 0));
+      _infoCharts.target = new Chart(document.getElementById('chartTarget'), {
+        type: 'bar',
+        plugins: [ChartDataLabels],
+        data: {
+          labels,
+          datasets: [{
+            data: sums,
+            backgroundColor: sums.map(v => v > 0 ? 'rgba(22,163,74,0.75)' : 'rgba(203,213,225,0.4)'),
+            borderRadius: 5,
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { display: false },
+            datalabels: {
+              anchor: 'end', align: 'top',
+              font: { weight: '700', size: 10 },
+              color: '#1e293b',
+              formatter: v => v > 0 ? v.toLocaleString() : ''
+            }
+          },
+          scales: { y: { beginAtZero: true, grid: { color: '#f1f5f9' } } }
+        }
+      });
     }
 
     // ================================================================
