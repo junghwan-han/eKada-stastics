@@ -1617,22 +1617,31 @@
       db.collection(FS_COL).onSnapshot(snap => {
         let allRecords = [];
         snap.docs.forEach(doc => {
-          // 로그 문서는 데이터 목록에서 제외
           if (doc.id === FS_LOG_DOC) return;
 
           const data = doc.data();
-          // 만약 데이터가 'records'라는 배열 안에 뭉쳐있다면? (Excel/JSON 대량 임포트 등)
+          let rawList = [];
           if (data.records && Array.isArray(data.records)) {
-            // 배열 안의 각 항목을 개별 레코드로 변환
-            const subRecords = data.records.map((r, i) => ({
-              _id: doc.id + '_' + i, // 고유 ID 생성
-              ...r
-            }));
-            allRecords = allRecords.concat(subRecords);
+            rawList = data.records.map((r, i) => ({ _id: doc.id + '_' + i, ...r }));
           } else {
-            // 일반적인 방식 (문서 1개 = 레코드 1개)
-            allRecords.push({ _id: doc.id, ...data });
+            rawList = [{ _id: doc.id, ...data }];
           }
+
+          // 데이터 정규화 (보정)
+          rawList.forEach(r => {
+            // 1. 월(Month) 보정: 월 필드가 없으면 교육일에서 추출
+            if (!r.월 && r.교육일) {
+              const d = new Date(r.교육일);
+              if (!isNaN(d.getTime())) r.월 = d.getMonth() + 1;
+            }
+            // 2. 강사 보정: '강사' 필드만 있고 '강사1'이 없으면 복사
+            if (r.강사 && !r.강사1) r.강사1 = r.강사;
+            // 3. 유형 보정: '유형'과 '교육유형' 혼용 대응
+            if (r.유형 && !r.교육유형) r.교육유형 = r.유형;
+            if (r.교육유형 && !r.유형) r.유형 = r.교육유형;
+
+            allRecords.push(r);
+          });
         });
 
         records = allRecords;
