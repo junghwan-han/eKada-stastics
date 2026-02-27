@@ -1004,7 +1004,7 @@
     <button class="btn btn-outline" onclick="openGroupedView()">👥 대상별 보기</button>
     <div class="sep"></div>
     <button id="btnMigrate" class="btn btn-outline" onclick="migrateFromLocalStorage()"
-      style="display:none;color:#16a34a;border-color:#16a34a;font-weight:700">📤 로컬 데이터 → Firestore 업로드</button>
+      style="display:none;color:#16a34a;border-color:#16a34a;font-weight:700">📤 저장하기</button>
     <button class="btn btn-outline" onclick="clearAllData()" style="color:#dc2626">🗑️ 전체 삭제</button>
   </div>
 
@@ -2112,17 +2112,29 @@
 
           const headers = data[headerRow].map(h => String(h || '').trim().replace(/\n/g, ''));
           let imported = 0;
+          const toAdd = [];
           for (let i = headerRow + 1; i < data.length; i++) {
             const row = data[i];
             if (!row[0] && !row[5]) continue; // skip empty
             const r = {};
             headers.forEach((h, ci) => { if (h) r[h] = row[ci] !== undefined ? row[ci] : ''; });
             const mapped = mapImportedRow(r, headers, row);
-            if (mapped.교육명) { records.push(mapped); imported++; }
+            if (mapped.교육명) {
+              toAdd.push(mapped);
+              imported++;
+            }
           }
-          saveData();
-          renderTable();
-          showToast(`${imported}건 가져오기 완료`, 'success');
+          if (toAdd.length > 0) {
+            saveBatchToFirestore(toAdd)
+              .then(() => {
+                showToast(`${imported}건 Firestore 저장 완료`, 'success');
+                // renderTable은 onSnapshot이 자동 처리하므로 명시적 호출 불필요할 수 있으나 확인용으로 남김
+                renderTable();
+              })
+              .catch(e => showToast('저장 실패: ' + e.message, 'error'));
+          } else {
+            showToast('가져올 데이터가 없습니다', 'error');
+          }
         } catch (e) {
           showToast('파일 파싱 오류: ' + e.message, 'error');
         }
