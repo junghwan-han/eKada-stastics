@@ -1612,11 +1612,28 @@
         if (doc.exists) logs = doc.data().logs || [];
       });
       // 교육 데이터: 컬렉션 단위 실시간 구독
-      // (단, logs 문서는 설정/로그용이므로 실제 교육 레코드 리스트에서는 제외함)
       db.collection(FS_COL).onSnapshot(snap => {
-        records = snap.docs
-          .filter(doc => doc.id !== FS_LOG_DOC) // 'logs' ID를 가진 문서는 제외
-          .map(doc => ({ _id: doc.id, ...doc.data() }));
+        let allRecords = [];
+        snap.docs.forEach(doc => {
+          // 로그 문서는 데이터 목록에서 제외
+          if (doc.id === FS_LOG_DOC) return;
+
+          const data = doc.data();
+          // 만약 데이터가 'records'라는 배열 안에 뭉쳐있다면? (Excel/JSON 대량 임포트 등)
+          if (data.records && Array.isArray(data.records)) {
+            // 배열 안의 각 항목을 개별 레코드로 변환
+            const subRecords = data.records.map((r, i) => ({
+              _id: doc.id + '_' + i, // 고유 ID 생성
+              ...r
+            }));
+            allRecords = allRecords.concat(subRecords);
+          } else {
+            // 일반적인 방식 (문서 1개 = 레코드 1개)
+            allRecords.push({ _id: doc.id, ...data });
+          }
+        });
+
+        records = allRecords;
         renderTable();
       }, err => {
         console.error('Firestore 오류:', err);
