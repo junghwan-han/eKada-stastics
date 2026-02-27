@@ -988,13 +988,15 @@
 
   <!-- Toolbar -->
   <div class="toolbar">
-    <button class="btn btn-primary" onclick="openAddModal()">➕ 새 레코드 추가</button>
+    <button class="btn btn-primary" onclick="checkAdminAction(() => openAddModal())">➕ 새 레코드 추가</button>
     <div class="sep"></div>
-    <button class="btn btn-outline" onclick="document.getElementById('importFile').click()">📂 Excel 가져오기</button>
+    <button class="btn btn-outline" onclick="checkAdminAction(() => document.getElementById('importFile').click())">📂
+      Excel 가져오기</button>
     <input type="file" id="importFile" accept=".xlsx,.xls" style="display:none" onchange="importExcel(this)">
-    <button class="btn btn-outline" onclick="document.getElementById('importJsonFile').click()">📥 JSON 가져오기</button>
+    <button class="btn btn-outline"
+      onclick="checkAdminAction(() => document.getElementById('importJsonFile').click())">📥 JSON 가져오기</button>
     <input type="file" id="importJsonFile" accept=".json" style="display:none" onchange="importJsonFile(this)">
-    <button class="btn btn-outline" onclick="openBookmarkletModal()">🔗 eKADA 붙여넣기</button>
+    <button class="btn btn-outline" onclick="checkAdminAction(() => openBookmarkletModal())">🔗 eKADA 붙여넣기</button>
     <div class="sep"></div>
     <button class="btn btn-success" onclick="exportExcel()">⬇️ Excel 내보내기</button>
     <div class="sep"></div>
@@ -1937,6 +1939,16 @@
       document.getElementById('btnDevUnlock').style.borderColor = '#16a34a';
       document.getElementById('btnDevUnlock').disabled = true;
       showToast('기본정보 및 강사정보 수정 가능', 'success');
+    }
+
+    // 관리자 기능 실행 전 비밀번호 확인
+    function checkAdminAction(callback) {
+      const pw = prompt('관리자 비밀번호를 입력하세요:');
+      if (pw === '0318@') {
+        callback();
+      } else if (pw !== null) {
+        showToast('비밀번호가 틀렸습니다.', 'error');
+      }
     }
 
     function closeModal(id) {
