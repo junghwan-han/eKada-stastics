@@ -26,9 +26,11 @@ $action = {
         Set-Location $path
         git add $file
         git commit -m "Auto-update: $time"
-        git push origin main
-        Write-Host "[$time] ✅ 배포 완료! 약 1분 후 사이트에 반영됩니다." -ForegroundColor Cyan
-    } catch {
+        git push origin dev
+        Write-Host "[$time] ✅ 업로드 완료! (dev 브랜치)" -ForegroundColor Cyan
+        Write-Host "[$time] 🔍 품질 검사 루틴이 깃허브에서 시작되었습니다." -ForegroundColor White
+    }
+    catch {
         Write-Host "[$time] ❌ 오류 발생: $_" -ForegroundColor Red
     }
     Write-Host "--------------------------------------------------------"
